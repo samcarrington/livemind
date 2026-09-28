@@ -31,3 +31,4 @@ specs/
 
 # Claude Code
 .claude/
+.codebase-memory/
