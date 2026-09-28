@@ -54,7 +54,20 @@ Open `/monitor` on the technician's device, `/` on the audience-facing screen.
 ## File Structure
 
 ```
-app.py              — FastAPI server: WS + REST routes, LLM proxy, STT relay, broadcast/snapshot loops
+app.py              — Entry point: lifespan, router registration, CLI; re-exports LLM helpers for replay.py
+settings.py         — .env loading + environment-derived config constants
+routes/             — HTTP/WS surface (APIRouters; registered in app.py, order matters)
+  pages.py          — Static HTML/SVG pages
+  sessions.py       — Session lifecycle, restore/playback, graph actions, export
+  post_session.py   — Recap, cross-session synthesis, transcript cleaning endpoints
+  providers.py      — LLM/STT provider switching, /v1/metrics
+  live.py           — /ws WebSocket endpoint
+services/           — Runtime state and behaviour (never import from app.py)
+  runtime.py        — Shared state: transcript queue, clients, metrics, activity log, reconciler
+  session_runtime.py — Current session, seq/generation counters, reset helpers (`live_session`)
+  llm.py            — Provider adapters, fallback chain, circuit breakers, pricing, JSON extraction
+  live_pipeline.py  — Audio → STT, LLM graph ingestion, broadcast/snapshot loops
+  post_session.py   — Background transcript-cleaning jobs
 stt_worker.py       — WebSocket audio receiver + STT dispatch (faster-whisper, Parakeet, Canary)
 db.py               — SQLite persistence (sessions, segments, snapshots, actions, recaps)
 reconciler.py       — Deterministic graph reconciler (scoring, decay, budget enforcement)
@@ -98,7 +111,7 @@ Located in the `C` object:
 - `DECAY_SECONDS`: 720 (12 min to parked)
 - Scoring: `0.45*recency + 0.35*frequency + 0.20*centrality + pin_bonus`
 
-### LLM Proxy (`app.py`)
+### LLM Proxy (`services/llm.py`)
 - Provider switching: anthropic / hugin (Ollama) / gemini
 - Circuit breaker: 3 failures → open, exponential backoff to 60s max
 - Server-side only: no API keys in browser

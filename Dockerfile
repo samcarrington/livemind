@@ -7,7 +7,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --no-cache --frozen
 
-COPY app.py db.py stt_worker.py reconciler.py ./
+COPY app.py settings.py db.py stt_worker.py reconciler.py ./
+COPY routes/ ./routes/
+COPY services/ ./services/
 COPY static/ ./static/
 
 # SQLite DB lives here — mount an Azure Files share at this path in production
