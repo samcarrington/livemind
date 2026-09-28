@@ -5,18 +5,27 @@ Real-time conversation visualization. Receives audio from browser,
 dispatches to STT, proxies LLM calls, manages graph reconciliation.
 """
 
-import asyncio, json, time, threading, queue, sys, argparse, os, uuid, base64
+import argparse
+import asyncio
+import base64
+import json
+import os
+import queue
+import sys
+import threading
+import time
+import uuid
 from contextlib import asynccontextmanager
 
-import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 import aiohttp
+import numpy as np
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 import db
 import stt_worker
-from stt_worker import configure_stt, configure_stt_urls, get_stt_config
 from reconciler import GraphReconciler
+from stt_worker import configure_stt, configure_stt_urls, get_stt_config
 
 # ─── Load .env ───
 _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -320,19 +329,26 @@ def _next_seq() -> int:
 async def _check_ollama_models():
     """Warn at startup if Ollama is unreachable or configured models aren't pulled."""
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
                 f"{HUGIN_BASE_URL}/api/tags", timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                data = await resp.json()
+            ) as resp,
+        ):
+            data = await resp.json()
     except Exception as e:
-        print(f"  WARNING: Ollama not reachable at {HUGIN_BASE_URL}: {e}", file=sys.stderr)
+        print(
+            f"  WARNING: Ollama not reachable at {HUGIN_BASE_URL}: {e}", file=sys.stderr
+        )
         return
     have = {m.get("name") for m in data.get("models", [])}
     have |= {n.removesuffix(":latest") for n in have}
     for m in sorted({OLLAMA_MODEL, OLLAMA_RECAP_MODEL}):
         if m not in have:
-            print(f"  WARNING: Ollama model '{m}' not found — run: ollama pull {m}", file=sys.stderr)
+            print(
+                f"  WARNING: Ollama model '{m}' not found — run: ollama pull {m}",
+                file=sys.stderr,
+            )
 
 
 # ─── Lifespan ───
@@ -354,7 +370,7 @@ async def lifespan(app: FastAPI):
     await _check_ollama_models()
     asyncio.create_task(broadcast_loop())
     asyncio.create_task(snapshot_loop())
-    print(f"  Server ready — audio arrives from browser via WebSocket")
+    print("  Server ready — audio arrives from browser via WebSocket")
     print(f"  Main:     http://0.0.0.0:{WS_PORT}/")
     print(f"  Monitor:  http://0.0.0.0:{WS_PORT}/monitor")
     print(f"  Sessions: http://0.0.0.0:{WS_PORT}/sessions\n")
@@ -926,28 +942,27 @@ Rules:
                     },
                 ]
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
                     f"{HUGIN_BASE_URL}/api/chat",
                     headers={"Content-Type": "application/json"},
                     json=ollama_body,
                     timeout=aiohttp.ClientTimeout(total=180),
                     ssl=False,
-                ) as resp:
-                    data = await resp.json()
-                    if resp.status != 200:
-                        err = data.get("error", "") or str(data)
-                        return JSONResponse(
-                            {"error": f"Ollama: {err}"}, status_code=502
-                        )
+                ) as resp,
+            ):
+                data = await resp.json()
+                if resp.status != 200:
+                    err = data.get("error", "") or str(data)
+                    return JSONResponse({"error": f"Ollama: {err}"}, status_code=502)
 
             raw_text = data.get("message", {}).get("content", "")
             # Strip markdown code fences if present
             cleaned = raw_text.strip()
             if cleaned.startswith("```"):
                 cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
+            cleaned = cleaned.removesuffix("```")
             recap = json.loads(cleaned.strip())
 
             # Add metadata
@@ -1177,7 +1192,11 @@ Rules:
             "think": False,
             "format": "json",
             "keep_alive": OLLAMA_KEEP_ALIVE,
-            "options": {"temperature": 0, "num_predict": 4096, "num_ctx": OLLAMA_NUM_CTX},
+            "options": {
+                "temperature": 0,
+                "num_predict": 4096,
+                "num_ctx": OLLAMA_NUM_CTX,
+            },
         }
         fallback = [{"seq": seg["seq"], "cleaned_text": seg["text"]} for seg in chunk]
 
@@ -1346,11 +1365,11 @@ async def generate_synthesis(request: Request):
 
         r = sd["recap"]
         block = f'SESSION {i}: "{sd["topic"] or "Untitled"}"{duration}\n'
-        block += f'ID: {sd["id"]}\n'
+        block += f"ID: {sd['id']}\n"
 
         # Include recap highlights
         if r.get("elevator_pitch"):
-            block += f'PITCH: {r["elevator_pitch"]}\n'
+            block += f"PITCH: {r['elevator_pitch']}\n"
         if r.get("retain"):
             block += (
                 "KEY TAKEAWAYS:\n"
@@ -1361,9 +1380,9 @@ async def generate_synthesis(request: Request):
             block += "CONNECTIONS:\n"
             for conn in r["non_obvious_connections"]:
                 topics = " ↔ ".join(conn.get("topics", []))
-                block += f'  - {topics}: {conn.get("insight", "")}\n'
+                block += f"  - {topics}: {conn.get('insight', '')}\n"
         if r.get("summary"):
-            block += f'SUMMARY: {r["summary"]}\n'
+            block += f"SUMMARY: {r['summary']}\n"
         if r.get("contradictions"):
             block += (
                 "CONTRADICTIONS:\n"
@@ -1388,7 +1407,7 @@ async def generate_synthesis(request: Request):
                 for e in edges:
                     src = id_to_label.get(e.get("source", ""), e.get("source", ""))
                     tgt = id_to_label.get(e.get("target", ""), e.get("target", ""))
-                    edge_strs.append(f'{src} --[{e.get("label", "")}]--> {tgt}')
+                    edge_strs.append(f"{src} --[{e.get('label', '')}]--> {tgt}")
                 if edge_strs:
                     block += "GRAPH EDGES: " + "; ".join(edge_strs) + "\n"
 
@@ -1659,7 +1678,7 @@ async def set_active_llm(request: Request):
             _llm_chain.extend(new_chain)
 
         print(
-            f"  LLM chain: {[f'{t['provider']}/{t['model']}' for t in old]} → {[f'{t['provider']}/{t['model']}' for t in new_chain]}"
+            f"  LLM chain: {[f'{t["provider"]}/{t["model"]}' for t in old]} → {[f'{t["provider"]}/{t["model"]}' for t in new_chain]}"
         )
         _publish_llm_state()
         return JSONResponse({"chain": new_chain, "tiers": _cb_snapshot()})
@@ -2235,7 +2254,7 @@ async def _proxy_claude(websocket: WebSocket, req: dict):
                         metrics["llm_parse_ok"] = metrics.get("llm_parse_ok", 0) + 1
                         metrics["llm_last_node_count"] = len(parsed.get("nodes", []))
                     print(
-                        f"  LLM: parsed {len(parsed['nodes'])} nodes, {len(parsed.get('edges',[]))} edges (reconciler: {n_before}→{n_after})"
+                        f"  LLM: parsed {len(parsed['nodes'])} nodes, {len(parsed.get('edges', []))} edges (reconciler: {n_before}→{n_after})"
                     )
 
                     graph_msg = json.dumps(
