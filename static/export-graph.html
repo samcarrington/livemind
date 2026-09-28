@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LiveMind Graph Export</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0c0c1a;
+  --txt: #d4d6e0;
+  --dim: #6b6f88;
+  --bright: #f4f4f8;
+}
+
+body {
+  background: var(--bg);
+  color: var(--bright);
+  font-family: 'DM Sans', sans-serif;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════
+   PDF MODE — two print pages
+   ═══════════════════════════════════════ */
+
+/* Page 1: full-page graph — exactly one PDF page, no overflow */
+.pdf-mode #graph-area {
+  width: 1920px;
+  height: 1080px;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle watermark on graph page */
+.pdf-mode .graph-watermark {
+  position: absolute;
+  bottom: 20px;
+  right: 30px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.12);
+  letter-spacing: 1px;
+}
+
+/* Page break between graph and metadata */
+.pdf-mode #page-break {
+  display: block;
+  page-break-after: always;
+  break-after: page;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Page 2: metadata */
+.pdf-mode #meta-page {
+  display: block;
+  width: 1920px;
+  height: 1080px;
+  padding: 80px 100px;
+  background: var(--bg);
+}
+.pdf-mode .meta-title {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--bright);
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+.pdf-mode .meta-date {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+  margin-bottom: 48px;
+}
+.pdf-mode .meta-divider {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, #34d399, #60a5fa);
+  border-radius: 1px;
+  margin-bottom: 40px;
+}
+.pdf-mode .meta-section {
+  margin-bottom: 40px;
+}
+.pdf-mode .meta-section-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--dim);
+  margin-bottom: 12px;
+  font-weight: 400;
+}
+.pdf-mode .meta-summary-text {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--txt);
+  max-width: 900px;
+}
+.pdf-mode .meta-stats {
+  display: flex;
+  gap: 48px;
+  margin-bottom: 40px;
+}
+.pdf-mode .meta-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--bright);
+}
+.pdf-mode .meta-stat-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--dim);
+  margin-top: 4px;
+}
+.pdf-mode .legend-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+}
+.pdf-mode .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pdf-mode .legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pdf-mode .legend-label {
+  font-size: 14px;
+  color: var(--txt);
+}
+.pdf-mode .legend-cat {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ═══════════════════════════════════════
+   VIDEO MODE — full viewport, animated
+   ═══════════════════════════════════════ */
+.video-mode #graph-area { width: 100vw; height: 100vh; }
+.video-mode #page-break { display: none; }
+.video-mode #meta-page { display: none; }
+
+/* Hidden by default */
+#page-break { display: none; }
+#meta-page { display: none; }
+#graph-area { width: 100%; height: 100vh; position: relative; }
+
+/* ═══════════════════════════════════════
+   D3 graph styles (bigscreen mode)
+   ═══════════════════════════════════════ */
+.edge-path {
+  fill: none;
+  stroke: rgba(255,255,255,0.08);
+  stroke-width: 1.5;
+  transition: d 0.6s ease-out;
+}
+.edge-text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 300;
+  fill: rgba(255,255,255,0.22);
+  text-anchor: middle;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+.n-aura { opacity: 0.06; }
+.n-outer {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.45;
+}
+.n-inner { opacity: 0.12; }
+.n-dot { opacity: 1; }
+.n-label {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  fill: var(--bright);
+  text-anchor: middle;
+  pointer-events: none;
+  letter-spacing: 0.2px;
+}
+.n-cat {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 300;
+  font-size: 11px;
+  fill: var(--dim);
+  text-anchor: middle;
+  pointer-events: none;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.n-group.pinned .n-outer {
+  stroke-width: 3;
+  opacity: 0.7;
+}
+
+/* Video: smooth node transitions */
+.video-mode .n-group {
+  transition: opacity 0.5s ease;
+}
+.video-mode .n-group.exiting {
+  opacity: 0;
+}
+</style>
+</head>
+<body>
+
+<!-- Page 1: Graph -->
+<div id="graph-area">
+  <div class="graph-watermark">LIVEMIND</div>
+</div>
+
+<!-- Page break for PDF -->
+<div id="page-break"></div>
+
+<!-- Page 2: Metadata -->
+<div id="meta-page">
+  <div class="meta-title" id="session-title"></div>
+  <div class="meta-date" id="session-date"></div>
+  <div class="meta-divider"></div>
+
+  <div class="meta-stats" id="meta-stats"></div>
+
+  <div class="meta-section" id="summary-section">
+    <div class="meta-section-label">Summary</div>
+    <div class="meta-summary-text" id="session-summary"></div>
+  </div>
+
+  <div class="meta-section">
+    <div class="meta-section-label">Concepts</div>
+    <div class="legend-grid" id="legend-content"></div>
+  </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+const COLORS = [
+  '#34d399','#a78bfa','#fb7185','#fbbf24','#60a5fa',
+  '#22d3ee','#fb923c','#f0abfc','#2dd4bf','#a3e635'
+];
+const colorMap = {};
+let colorIdx = 0;
+function nodeColor(group) {
+  if (!colorMap[group]) colorMap[group] = COLORS[colorIdx++ % COLORS.length];
+  return colorMap[group];
+}
+
+const S = { aura: 70, outer: 38, inner: 32, dot: 5, labelDy: 58, catDy: 74 };
+const PAD = 100; // keep nodes inside bounds (aura + label height)
+
+let gEdge, gNode, sim, svg;
+let W, H;
+
+function initGraph() {
+  const area = document.getElementById('graph-area');
+  W = area.clientWidth;
+  H = area.clientHeight;
+
+  svg = d3.select(area).append('svg').attr('width', W).attr('height', H);
+
+  const defs = svg.append('defs');
+  const glow = defs.append('filter').attr('id', 'glow');
+  glow.append('feGaussianBlur').attr('stdDeviation', '5');
+  const halo = defs.append('filter').attr('id', 'halo')
+    .attr('x', '-200%').attr('y', '-200%').attr('width', '500%').attr('height', '500%');
+  halo.append('feGaussianBlur').attr('stdDeviation', '30');
+
+  gEdge = svg.append('g');
+  gNode = svg.append('g');
+
+  sim = d3.forceSimulation([])
+    .force('link', d3.forceLink([]).id(d => d.id).distance(280).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-1000).distanceMax(500))
+    .force('center', d3.forceCenter(W / 2, H / 2).strength(0.03))
+    .force('collide', d3.forceCollide().radius(100).strength(0.8))
+    .force('x', d3.forceX(W / 2).strength(0.015))
+    .force('y', d3.forceY(H / 2).strength(0.015))
+    .alphaDecay(0.02)
+    .velocityDecay(0.4)
+    .on('tick', tick)
+    .stop();
+}
+
+function clampNodes() {
+  sim.nodes().forEach(d => {
+    d.x = Math.max(PAD, Math.min(W - PAD, d.x));
+    d.y = Math.max(PAD, Math.min(H - PAD, d.y));
+  });
+}
+
+function tick() {
+  clampNodes();
+  gEdge.selectAll('.edge-path').attr('d', d => {
+    const dx = d.target.x - d.source.x;
+    const dy = d.target.y - d.source.y;
+    const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+  });
+  gEdge.selectAll('.edge-text')
+    .attr('x', d => (d.source.x + d.target.x) / 2 + (d.target.y - d.source.y) * 0.06)
+    .attr('y', d => (d.source.y + d.target.y) / 2 - (d.target.x - d.source.x) * 0.06);
+  gNode.selectAll('.n-group')
+    .attr('transform', d => `translate(${d.x},${d.y})`);
+}
+
+// ═══════════════════════════════════════
+// PDF MODE — static render, two pages
+// ═══════════════════════════════════════
+
+function renderStatic(graphData, meta) {
+  document.body.classList.add('pdf-mode');
+  initGraph();
+
+  const nodesDict = graphData.nodes || {};
+  const rawEdges = graphData.edges || [];
+
+  const activeNodes = Object.values(nodesDict)
+    .filter(n => n.state === 'active')
+    .map(n => ({
+      id: n.id, label: n.label, group: n.group,
+      importance: n.importance || 0.5, pinned: n.pinned || false,
+      color: nodeColor(n.group),
+    }));
+
+  const activeIds = new Set(activeNodes.map(n => n.id));
+  const edges = rawEdges
+    .filter(e => activeIds.has(e.source) && activeIds.has(e.target))
+    .map(e => ({ source: e.source, target: e.target, label: e.label || '' }));
+
+  sim.nodes(activeNodes);
+  sim.force('link').links(edges);
+  sim.alpha(1);
+  for (let i = 0; i < 300; i++) sim.tick();
+  clampNodes(); // ensure nothing overflows the page
+
+  // Render edges
+  const eSel = gEdge.selectAll('.e-group').data(edges).enter().append('g').attr('class', 'e-group');
+  eSel.append('path').attr('class', 'edge-path').attr('d', d => {
+    const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
+    const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+  });
+  eSel.append('text').attr('class', 'edge-text')
+    .attr('x', d => (d.source.x + d.target.x) / 2 + (d.target.y - d.source.y) * 0.06)
+    .attr('y', d => (d.source.y + d.target.y) / 2 - (d.target.x - d.source.x) * 0.06)
+    .text(d => d.label);
+
+  // Render nodes
+  const nSel = gNode.selectAll('.n-group').data(activeNodes).enter().append('g')
+    .attr('class', d => 'n-group' + (d.pinned ? ' pinned' : ''))
+    .attr('transform', d => `translate(${d.x},${d.y})`);
+  nSel.append('circle').attr('class', 'n-aura').attr('r', S.aura).attr('fill', d => d.color).attr('filter', 'url(#halo)');
+  nSel.append('circle').attr('class', 'n-outer').attr('r', S.outer).attr('stroke', d => d.color);
+  nSel.append('circle').attr('class', 'n-inner').attr('r', S.inner).attr('fill', d => d.color);
+  nSel.append('circle').attr('class', 'n-dot').attr('r', S.dot).attr('fill', d => d.color).attr('filter', 'url(#glow)');
+  nSel.append('text').attr('class', 'n-label').attr('dy', S.labelDy).text(d => d.label);
+  nSel.append('text').attr('class', 'n-cat').attr('dy', S.catDy).text(d => d.group);
+
+  // Populate page 2 metadata
+  if (meta) {
+    document.getElementById('session-title').textContent = meta.topic || 'Untitled Session';
+    document.getElementById('session-date').textContent = meta.date || '';
+
+    // Stats
+    const statsEl = document.getElementById('meta-stats');
+    const stats = meta.stats || {};
+    const statItems = [
+      { value: stats.nodes || activeNodes.length, label: 'Concepts' },
+      { value: stats.edges || edges.length, label: 'Connections' },
+      { value: stats.segments || '—', label: 'Segments' },
+      { value: stats.duration || '—', label: 'Duration' },
+    ];
+    statsEl.innerHTML = statItems.map(s =>
+      `<div><div class="meta-stat-value">${s.value}</div><div class="meta-stat-label">${s.label}</div></div>`
+    ).join('');
+
+    // Summary
+    const summaryText = meta.summary || '';
+    if (summaryText) {
+      document.getElementById('session-summary').textContent = summaryText;
+    } else {
+      document.getElementById('summary-section').style.display = 'none';
+    }
+
+    // Legend
+    buildLegend(activeNodes);
+  }
+
+  window.__READY__ = true;
+}
+
+function buildLegend(nodes) {
+  const groups = {};
+  nodes.forEach(n => {
+    if (!groups[n.group]) groups[n.group] = { color: n.color, items: [] };
+    groups[n.group].items.push(n.label);
+  });
+
+  const container = document.getElementById('legend-content');
+  container.innerHTML = '';
+  for (const [group, data] of Object.entries(groups).sort()) {
+    data.items.forEach(label => {
+      container.innerHTML += `<div class="legend-item">
+        <span class="legend-dot" style="background:${data.color}"></span>
+        <span><span class="legend-label">${label}</span> <span class="legend-cat">${group}</span></span>
+      </div>`;
+    });
+  }
+}
+
+// ═══════════════════════════════════════
+// VIDEO MODE — live D3 animation
+// ═══════════════════════════════════════
+
+let positions = {};
+let videoQueue = [];
+let videoPlaying = false;
+
+window.__initVideo__ = function() {
+  document.body.classList.add('video-mode');
+  initGraph();
+  sim.on('tick', tick); // keep simulation ticking live
+  window.__READY__ = true;
+};
+
+// Queue a snapshot for animated playback
+window.__applySnapshot__ = function(graphData) {
+  const nodesDict = graphData.nodes || {};
+  const rawEdges = graphData.edges || [];
+
+  const activeNodes = Object.values(nodesDict)
+    .filter(n => n.state === 'active')
+    .map(n => {
+      const pos = positions[n.id];
+      return {
+        id: n.id, label: n.label, group: n.group,
+        importance: n.importance || 0.5, pinned: n.pinned || false,
+        color: nodeColor(n.group),
+        x: pos ? pos.x : W / 2 + (Math.random() - 0.5) * 200,
+        y: pos ? pos.y : H / 2 + (Math.random() - 0.5) * 200,
+        vx: pos ? pos.vx * 0.3 : 0,
+        vy: pos ? pos.vy * 0.3 : 0,
+      };
+    });
+
+  const activeIds = new Set(activeNodes.map(n => n.id));
+  const edges = rawEdges
+    .filter(e => activeIds.has(e.source) && activeIds.has(e.target))
+    .map(e => ({ source: e.source, target: e.target, label: e.label || '' }));
+
+  // Edges: data-join with transitions
+  const eKey = d => {
+    const s = typeof d.source === 'object' ? d.source.id : d.source;
+    const t = typeof d.target === 'object' ? d.target.id : d.target;
+    return s + '->' + t;
+  };
+  const eData = gEdge.selectAll('.e-group').data(edges, eKey);
+  eData.exit().transition().duration(600).style('opacity', 0).remove();
+  const eEnter = eData.enter().append('g').attr('class', 'e-group').style('opacity', 0);
+  eEnter.append('path').attr('class', 'edge-path');
+  eEnter.append('text').attr('class', 'edge-text').text(d => d.label);
+  eEnter.transition().duration(800).style('opacity', 1);
+  eData.select('.edge-text').text(d => d.label);
+
+  // Nodes: data-join with animated entry/exit
+  const nData = gNode.selectAll('.n-group').data(activeNodes, d => d.id);
+
+  nData.exit()
+    .classed('exiting', true)
+    .transition().duration(600)
+    .style('opacity', 0)
+    .attr('transform', d => `translate(${d.x},${d.y}) scale(0.3)`)
+    .remove();
+
+  const nEnter = nData.enter().append('g')
+    .attr('class', d => 'n-group' + (d.pinned ? ' pinned' : ''))
+    .style('opacity', 0)
+    .attr('transform', d => `translate(${d.x},${d.y}) scale(0.5)`);
+
+  nEnter.append('circle').attr('class', 'n-aura').attr('r', S.aura).attr('fill', d => d.color).attr('filter', 'url(#halo)');
+  nEnter.append('circle').attr('class', 'n-outer').attr('r', S.outer).attr('stroke', d => d.color);
+  nEnter.append('circle').attr('class', 'n-inner').attr('r', S.inner).attr('fill', d => d.color);
+  nEnter.append('circle').attr('class', 'n-dot').attr('r', S.dot).attr('fill', d => d.color).attr('filter', 'url(#glow)');
+  nEnter.append('text').attr('class', 'n-label').attr('dy', S.labelDy).text(d => d.label);
+  nEnter.append('text').attr('class', 'n-cat').attr('dy', S.catDy).text(d => d.group);
+
+  nEnter.transition().duration(700).ease(d3.easeCubicOut)
+    .style('opacity', 1)
+    .attr('transform', d => `translate(${d.x},${d.y}) scale(1)`);
+
+  const merged = nEnter.merge(nData);
+  merged.select('.n-label').text(d => d.label);
+  merged.select('.n-cat').text(d => d.group);
+  merged.select('.n-outer').attr('stroke', d => d.color);
+  merged.select('.n-inner').attr('fill', d => d.color);
+  merged.select('.n-dot').attr('fill', d => d.color);
+  merged.select('.n-aura').attr('fill', d => d.color);
+
+  // Restart simulation — let it animate naturally
+  sim.nodes(activeNodes);
+  sim.force('link').links(edges);
+  sim.alpha(0.5).restart();
+
+  // Save positions after settling
+  setTimeout(() => {
+    activeNodes.forEach(n => {
+      positions[n.id] = { x: n.x, y: n.y, vx: n.vx, vy: n.vy };
+    });
+    window.__SETTLED__ = true;
+  }, 2000);
+
+  window.__SETTLED__ = false;
+};
+
+// Signal that all snapshots have been applied
+window.__finish__ = function() {
+  window.__FINISHED__ = true;
+};
+
+window.__READY__ = false;
+window.__SETTLED__ = false;
+window.__FINISHED__ = false;
+</script>
+</body>
+</html>

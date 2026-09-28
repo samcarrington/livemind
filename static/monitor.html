@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveMind Monitor</title>
+<link rel="icon" type="image/svg+xml" href="/livemind-favicon.svg">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root {
+  --bg: #080814;
+  --panel: #0c0d18;
+  --card: rgba(255,255,255,0.04);
+  --bdr: rgba(255,255,255,0.08);
+  --txt: #d4d6e0;
+  --dim: #7a7d94;
+  --bright: #f2f2f6;
+  --green: #34d399;
+  --purple: #a78bfa;
+  --rose: #fb7185;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+  --teal: #2dd4bf;
+  --orange: #fb923c;
+  --pink: #f0abfc;
+  --lime: #a3e635;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========== HEADER ========== */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--bdr);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+#header .brand {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--green);
+}
+#header .session-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--dim);
+}
+#header .session-id {
+  color: var(--txt);
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+#hdr-end-session {
+  display: none;
+  padding: 5px 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(251,113,133,0.3);
+  border-radius: 4px;
+  color: var(--rose);
+  cursor: pointer;
+  transition: all .2s;
+}
+#hdr-end-session:hover {
+  background: rgba(251,113,133,0.1);
+  border-color: var(--rose);
+}
+
+/* ========== DISCONNECT BANNER ========== */
+#disconnect-banner {
+  display: none;
+  background: rgba(251,113,133,0.15);
+  border-bottom: 1px solid rgba(251,113,133,0.3);
+  padding: 8px 20px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--rose);
+  text-align: center;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+/* ========== LIVE PHASE LAYOUT ========== */
+#phase-live {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#phase-live.hidden { display: none; }
+
+/* ========== MAIN GRID ========== */
+#main {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ========== COLUMNS ========== */
+.col {
+  overflow-y: auto;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.04) transparent;
+}
+.col-left {
+  border-right: 1px solid var(--bdr);
+  background: var(--panel);
+}
+.col-center {
+  background: var(--bg);
+}
+.col-right {
+  border-left: 1px solid var(--bdr);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========== SECTION LABELS ========== */
+.sec-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 10px;
+}
+.sec-label:not(:first-child) {
+  margin-top: 20px;
+}
+
+/* ========== FORM CONTROLS ========== */
+select, button {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+select {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  color: var(--txt);
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23484b5e'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+select:focus {
+  border-color: rgba(52,211,153,0.4);
+}
+select option {
+  background: #0a0b14;
+  color: var(--txt);
+}
+
+.btn {
+  padding: 9px 16px;
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  transition: all .2s;
+  letter-spacing: 0.5px;
+}
+.btn:hover {
+  border-color: rgba(255,255,255,0.12);
+  color: var(--txt);
+}
+.btn-primary {
+  background: var(--green);
+  color: #060610;
+  border-color: var(--green);
+  font-weight: 500;
+}
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+.btn-danger {
+  border-color: rgba(251,113,133,0.3);
+  color: var(--rose);
+}
+.btn-danger:hover {
+  background: rgba(251,113,133,0.1);
+  border-color: var(--rose);
+}
+.btn-stop {
+  background: var(--rose);
+  color: #060610;
+  border-color: var(--rose);
+  font-weight: 500;
+}
+.btn-muted {
+  background: var(--amber);
+  color: #060610;
+  border-color: var(--amber);
+  font-weight: 500;
+}
+
+/* ========== GAIN METER ========== */
+.meter-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 120px;
+  margin: 8px 0;
+}
+.meter-bar-bg {
+  width: 24px;
+  height: 100%;
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.meter-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--green);
+  border-radius: 0 0 3px 3px;
+  transition: height 0.05s linear;
+}
+.meter-db {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  min-width: 50px;
+}
+
+/* ========== WAVEFORM ========== */
+#waveform {
+  width: 100%;
+  height: 48px;
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  background: var(--card);
+  margin: 8px 0;
+}
+
+/* ========== VAD INDICATOR ========== */
+.vad-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.vad-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex-shrink: 0;
+  transition: all .2s;
+}
+.vad-dot.speaking {
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(52,211,153,0.6);
+}
+.vad-dot.silent {
+  background: rgba(52,211,153,0.25);
+}
+.vad-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+}
+
+/* ========== AUDIO CONTROLS ========== */
+.audio-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.audio-btns .btn {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ========== STATUS BLOCK ========== */
+.status-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ========== STATUS DOTS ========== */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+.s-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dim);
+  transition: all .3s;
+}
+.s-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(52,211,153,0.4); }
+.s-dot.warn { background: var(--amber); box-shadow: 0 0 6px rgba(251,191,36,0.4); }
+.s-dot.err { background: var(--rose); box-shadow: 0 0 6px rgba(251,113,133,0.4); }
+.s-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+}
+.s-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--bright);
+}
+
+/* ========== METRICS GRID ========== */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 8px 0;
+}
+.metric-card {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.metric-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+.metric-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--bright);
+}
+.metric-value.small {
+  font-size: 12px;
+}
+
+/* ========== STT BACKEND PICKER ========== */
+.stt-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0;
+}
+.stt-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.stt-option:hover {
+  border-color: rgba(255,255,255,0.1);
+}
+.stt-option.active {
+  border-color: rgba(52,211,153,0.4);
+  background: rgba(52,211,153,0.04);
+}
+.stt-option input[type="radio"] {
+  accent-color: var(--green);
+  margin: 0;
+}
+.stt-option-info {
+  flex: 1;
+}
+.stt-option-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--txt);
+}
+.stt-option-note {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+/* ========== LLM CHAIN ========== */
+.llm-tier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  transition: all .2s;
+}
+.llm-tier.serving {
+  border-color: rgba(52,211,153,0.4);
+  background: rgba(52,211,153,0.06);
+}
+.llm-tier.breaker-open {
+  border-color: rgba(251,113,133,0.4);
+  background: rgba(251,113,133,0.04);
+  opacity: 0.7;
+}
+.llm-tier.breaker-half_open {
+  border-color: rgba(251,191,36,0.4);
+  background: rgba(251,191,36,0.04);
+}
+.llm-rank {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  width: 14px;
+  text-align: center;
+}
+.llm-tier-info {
+  flex: 1;
+  min-width: 0;
+}
+.llm-tier-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--txt);
+}
+.llm-tier-note {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.llm-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.llm-badge.serving {
+  color: var(--green);
+  background: rgba(52,211,153,0.12);
+  border: 1px solid rgba(52,211,153,0.4);
+}
+.llm-badge.open {
+  color: var(--rose);
+  background: rgba(251,113,133,0.12);
+  border: 1px solid rgba(251,113,133,0.4);
+}
+.llm-badge.half_open {
+  color: var(--amber);
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.4);
+}
+.llm-badge.standby {
+  color: var(--dim);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--bdr);
+}
+
+/* ========== SESSION CONTROLS ========== */
+.session-btns {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+}
+.session-btns .btn {
+  flex: 1;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* ========== SETUP PHASE ========== */
+#phase-setup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+}
+#phase-setup.hidden { display: none; }
+
+.setup-card {
+  width: 480px;
+  padding: 40px;
+}
+.setup-card .tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 8px;
+}
+.setup-card h2 {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--bright);
+  margin-bottom: 32px;
+  letter-spacing: -0.3px;
+}
+.setup-field {
+  margin-bottom: 20px;
+}
+.setup-field label {
+  display: block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+.setup-field input[type="text"] {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  color: var(--txt);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 300;
+  outline: none;
+  transition: border-color .25s;
+}
+.setup-field input[type="text"]:focus {
+  border-color: rgba(52,211,153,0.5);
+}
+.setup-field input[type="text"]::placeholder {
+  color: var(--dim);
+}
+.setup-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.setup-field select {
+  width: 100%;
+}
+#btn-start-session {
+  width: 100%;
+  padding: 14px;
+  margin-top: 8px;
+  background: var(--green);
+  color: #060610;
+  border: none;
+  border-radius: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .2s;
+}
+#btn-start-session:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* ========== GRAPH MIRROR ========== */
+#graph-mirror {
+  flex: 1;
+  min-height: 250px;
+  position: relative;
+  overflow: hidden;
+}
+#graph-mirror svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.gm-edge {
+  fill: none;
+  stroke: rgba(255,255,255,0.06);
+  stroke-width: 0.8;
+}
+.gm-node-outer {
+  fill: none;
+  stroke-width: 0.8;
+  opacity: 0.3;
+}
+.gm-node-inner {
+  opacity: 0.1;
+}
+.gm-node-dot {
+  opacity: 0.9;
+}
+.gm-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 8px;
+  font-weight: 500;
+  fill: var(--bright);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* ========== TRANSCRIPT BAR ========== */
+#transcript-bar {
+  flex-shrink: 0;
+  height: 140px;
+  border-top: 1px solid var(--bdr);
+  background: var(--panel);
+  overflow-y: auto;
+  padding: 10px 20px;
+  font-size: 13px;
+  line-height: 1.8;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.04) transparent;
+}
+#transcript-bar .t-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+.t-chunk {
+  color: var(--txt);
+  display: inline;
+  animation: fadein .4s ease;
+}
+.t-chunk.faded { color: var(--dim); }
+.t-partial {
+  color: var(--dim);
+  display: inline;
+  font-style: italic;
+  opacity: 0.6;
+}
+@keyframes fadein {
+  from { opacity:0; transform: translateY(3px); }
+  to { opacity:1; transform: translateY(0); }
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 900px) {
+  #main {
+    grid-template-columns: 1fr;
+  }
+  .col-left, .col-right {
+    border: none;
+    border-bottom: 1px solid var(--bdr);
+  }
+  #graph-mirror { min-height: 200px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<div id="header">
+  <a href="/sessions" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:1px solid var(--bdr);border-radius:4px;padding:5px 12px;margin-right:16px;transition:color .2s,border-color .2s;white-space:nowrap;" onmouseover="this.style.color='var(--txt)';this.style.borderColor='rgba(255,255,255,0.15)'" onmouseout="this.style.color='var(--dim)';this.style.borderColor='var(--bdr)'">← Sessions</a>
+  <span class="brand">LiveMind Monitor</span>
+  <div class="session-info">
+    <span>Session:</span>
+    <span class="session-id" id="hdr-session">---</span>
+    <span id="hdr-topic" style="color:var(--txt);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <span id="hdr-duration">00:00</span>
+    <button id="hdr-end-session">End Session</button>
+  </div>
+</div>
+
+<!-- ===== DISCONNECT BANNER ===== -->
+<div id="disconnect-banner">DISCONNECTED — RECONNECTING...</div>
+
+<!-- ===== PHASE 1: SESSION SETUP ===== -->
+<div id="phase-setup">
+  <div class="setup-card">
+    <img src="/livemind-logo-clean.svg" alt="LiveMind" style="width:220px;margin-bottom:24px;opacity:0.85;">
+    <h2>Session Setup</h2>
+
+    <div class="setup-field">
+      <label>Topic</label>
+      <input type="text" id="setup-topic" placeholder="e.g. Q1 Strategy Kickoff">
+    </div>
+
+    <div class="setup-row">
+      <div class="setup-field">
+        <label>Language</label>
+        <select id="setup-lang">
+          <option value="">Auto-detect</option>
+          <option value="en">English</option>
+          <option value="no">Norwegian</option>
+          <option value="sv">Swedish</option>
+          <option value="da">Danish</option>
+          <option value="de">German</option>
+          <option value="fr">French</option>
+        </select>
+      </div>
+      <div class="setup-field">
+        <label>Audio Device</label>
+        <select id="device-picker"><option value="">Loading devices...</option></select>
+      </div>
+    </div>
+
+    <button id="btn-start-session">Start Session</button>
+    <div style="text-align:center;margin-top:16px;">
+      <a href="/sessions" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--dim);text-decoration:none;transition:color .2s;" onmouseover="this.style.color='var(--green)'" onmouseout="this.style.color='var(--dim)'">Browse past sessions &rarr;</a>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PHASE 2: LIVE MONITOR ===== -->
+<div id="phase-live" class="hidden">
+
+  <!-- MAIN 3-COL GRID -->
+  <div id="main">
+
+    <!-- LEFT: AUDIO -->
+    <div class="col col-left">
+      <div class="sec-label">Audio Input</div>
+      <div class="sec-label" style="margin-top:0;font-size:10px;color:var(--txt);letter-spacing:0;" id="live-device-name">--</div>
+
+      <div class="sec-label">Level</div>
+      <div class="meter-wrap">
+        <div class="meter-bar-bg">
+          <div class="meter-bar-fill" id="meter-fill" style="height:0%"></div>
+        </div>
+        <div>
+          <div class="vad-row">
+            <div class="vad-dot" id="vad-dot"></div>
+            <span class="vad-label" id="vad-label">No Input</span>
+          </div>
+          <div class="meter-db" id="meter-db">-Inf dB</div>
+        </div>
+      </div>
+
+      <canvas id="waveform"></canvas>
+
+      <div class="sec-label">Language</div>
+      <select id="lang-picker">
+        <option value="">Auto-detect</option>
+        <option value="en">English</option>
+        <option value="no">Norwegian</option>
+        <option value="sv">Swedish</option>
+        <option value="da">Danish</option>
+        <option value="de">German</option>
+        <option value="fr">French</option>
+      </select>
+
+      <div class="audio-btns">
+        <button class="btn btn-primary" id="btn-start">Start</button>
+        <button class="btn" id="btn-mute">Mute</button>
+      </div>
+    </div>
+
+    <!-- CENTER: STATUS + METRICS -->
+    <div class="col col-center">
+      <div class="sec-label">Status</div>
+      <div class="status-block">
+        <div class="status-col">
+          <div class="status-row"><div class="s-dot" id="dot-ws"></div><span class="s-label">WebSocket</span><span class="s-value" id="val-ws">---</span></div>
+          <div class="status-row"><div class="s-dot" id="dot-stt"></div><span class="s-label">STT</span><span class="s-value" id="val-stt">idle</span></div>
+          <div class="status-row"><div class="s-dot" id="dot-llm"></div><span class="s-label">LLM</span><span class="s-value" id="val-llm">idle</span></div>
+        </div>
+        <div class="status-col">
+          <div class="status-row"><span class="s-label">Segments</span><span class="s-value" id="val-segments">0</span></div>
+          <div class="status-row"><span class="s-label">Chars</span><span class="s-value" id="val-chars">0</span></div>
+          <div class="status-row"><span class="s-label">Lang</span><span class="s-value" id="val-lang">--</span></div>
+        </div>
+      </div>
+
+      <div class="sec-label">Metrics</div>
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-label">STT Latency</div><div class="metric-value small" id="m-stt-lat">-- / --</div></div>
+        <div class="metric-card"><div class="metric-label">LLM Latency</div><div class="metric-value small" id="m-llm-lat">-- / --</div></div>
+        <div class="metric-card"><div class="metric-label">Graph</div><div class="metric-value" id="m-graph">0 / 24</div></div>
+        <div class="metric-card"><div class="metric-label">Churn /min</div><div class="metric-value small" id="m-churn">+0 / -0</div></div>
+        <div class="metric-card"><div class="metric-label">LLM Parse</div><div class="metric-value small" id="m-parse">0 ok / 0 fail</div></div>
+        <div class="metric-card"><div class="metric-label">Cost</div><div class="metric-value" id="m-cost">$0.00</div></div>
+        <div class="metric-card"><div class="metric-label">Circuit Breaker</div><div class="metric-value small" id="m-cb">closed</div></div>
+        <div class="metric-card"><div class="metric-label">Audience FPS</div><div class="metric-value" id="m-fps">--</div></div>
+      </div>
+
+      <div class="sec-label">STT Backend</div>
+      <div class="stt-options" id="stt-options"></div>
+
+      <div class="sec-label">LLM Chain <span id="llm-chain-state" class="s-label" style="float:right;font-size:10px;"></span></div>
+      <div id="llm-tiers"></div>
+    </div>
+
+    <!-- RIGHT: GRAPH MIRROR -->
+    <div class="col col-right">
+      <div class="sec-label">Graph Mirror</div>
+      <div id="graph-mirror"><svg id="gm-svg"></svg></div>
+      <div style="text-align:center; padding:6px 0;">
+        <span class="s-label" id="gm-count">0 nodes</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSCRIPT BAR (inside live phase) -->
+  <div id="transcript-bar">
+    <div class="t-label">Transcript</div>
+    <div id="transcript-text"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+const S = {
+  ws: null,
+  wsConnected: false,
+  reconnectDelay: 3000,
+  metricsInterval: null,
+  pingInterval: null,
+
+  // Audio
+  audioCtx: null,
+  stream: null,
+  analyser: null,
+  processor: null,
+  capturing: false,
+  muted: false,
+  sampleRate: 48000,
+
+  // VAD
+  smoothedRms: 0,
+  isSpeaking: false,
+  onsetCount: 0,
+  offsetCount: 0,
+  vadActive: false,
+
+  // Audio buffering
+  preRollBuf: [],
+  speechBuf: [],
+  preRollMax: 0, // set when audioCtx is created
+
+  // Graph
+  gmNodes: [],
+  gmEdges: [],
+  gmCmap: {},
+  gmCi: 0,
+
+  // Session
+  sessionId: null,
+  segmentCount: 0,
+  totalChars: 0,
+  sessionStart: null,
+};
+
+const COLORS = [
+  '#34d399','#a78bfa','#fb7185','#fbbf24','#60a5fa',
+  '#22d3ee','#fb923c','#f0abfc','#2dd4bf','#a3e635'
+];
+
+// VAD parameters
+const VAD = {
+  alpha: 0.3,
+  onsetThreshold: 0.02,
+  offsetThreshold: 0.008,
+  onsetFrames: 3,
+  offsetFrames: 25,
+};
+
+const MAX_SPEECH_SECONDS = 5.0;
+const MIN_SPEECH_SECONDS = 1.0;
+const PRE_ROLL_SECONDS = 0.5;
+
+// ════════════════════════════════════════════
+//  WEBSOCKET
+// ════════════════════════════════════════════
+function wsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return proto + '//' + location.host + '/ws';
+}
+
+function connectWS() {
+  S.ws = new WebSocket(wsUrl());
+
+  S.ws.onopen = () => {
+    S.wsConnected = true;
+    S.reconnectDelay = 3000;
+    setDot('dot-ws', 'ok');
+    el('val-ws').textContent = 'connected';
+    el('disconnect-banner').style.display = 'none';
+
+    // Start polling
+    S.metricsInterval = setInterval(() => wsSend({type:'get_metrics'}), 2000);
+    S.pingInterval = setInterval(() => wsSend({type:'ping'}), 5000);
+
+    // Reconnect session
+    if (S.sessionId) {
+      wsSend({type:'connect_session', session_id: S.sessionId, last_seq: 0});
+    }
+  };
+
+  S.ws.onclose = () => {
+    S.wsConnected = false;
+    setDot('dot-ws', 'err');
+    el('val-ws').textContent = 'disconnected';
+    el('disconnect-banner').style.display = '';
+    clearInterval(S.metricsInterval);
+    clearInterval(S.pingInterval);
+    setTimeout(connectWS, S.reconnectDelay);
+    S.reconnectDelay = Math.min(S.reconnectDelay * 1.5, 30000);
+  };
+
+  S.ws.onerror = () => {
+    setDot('dot-ws', 'err');
+  };
+
+  S.ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    handleWSMessage(d);
+  };
+}
+
+function wsSend(obj) {
+  if (S.ws && S.ws.readyState === 1) {
+    S.ws.send(JSON.stringify(obj));
+  }
+}
+
+function handleWSMessage(d) {
+  switch (d.type) {
+    case 'transcript':
+      if (d.text) {
+        appendTranscript(d.text, false);
+        S.totalChars += d.text.length;
+        el('val-chars').textContent = S.totalChars > 999 ? (S.totalChars / 1000).toFixed(1) + 'k' : S.totalChars;
+      }
+      S.segmentCount++;
+      el('val-segments').textContent = S.segmentCount;
+      setDot('dot-stt', 'ok');
+      el('val-stt').textContent = 'ok';
+      break;
+
+    case 'partial_transcript':
+      if (d.text) appendTranscript(d.text, true);
+      setDot('dot-stt', 'ok');
+      break;
+
+    case 'claude_response':
+      if (d.status === 200) {
+        setDot('dot-llm', 'ok');
+        el('val-llm').textContent = 'ok';
+        // Extract graph from response
+        try {
+          const raw = d.data.content.map(c => c.text||'').join('');
+          const g = JSON.parse(raw);
+          if (g.nodes && g.edges) applyGraphMirror(g);
+        } catch(e) {}
+      } else if (d.status === 429 || d.status === 503) {
+        setDot('dot-llm', 'warn');
+        el('val-llm').textContent = d.status === 429 ? 'rate limited' : 'circuit breaker';
+      } else {
+        setDot('dot-llm', 'err');
+        el('val-llm').textContent = 'error ' + d.status;
+      }
+      break;
+
+    case 'graph_update':
+      if (d.graph) applyGraphMirror(d.graph);
+      break;
+
+    case 'session_reset':
+      S.sessionId = d.session_id;
+      S.segmentCount = 0;
+      S.sessionStart = Date.now();
+      el('hdr-session').textContent = d.session_id;
+      el('hdr-topic').textContent = d.topic || '';
+      el('val-segments').textContent = '0';
+      el('transcript-text').innerHTML = '';
+      S.gmNodes = []; S.gmEdges = [];
+      showLivePhase();
+      break;
+
+    case 'session_ended':
+      S.sessionId = null;
+      S.sessionStart = null;
+      stopCapture();
+      showSetupPhase();
+      break;
+
+    case 'metrics':
+      updateMetrics(d);
+      break;
+
+    case 'restore':
+      if (d.session_id && !S.sessionId) {
+        S.sessionId = d.session_id;
+        S.sessionStart = Date.now();
+        el('hdr-session').textContent = d.session_id;
+        showLivePhase();
+      }
+      if (d.segments) {
+        for (const seg of d.segments) {
+          if (!seg.is_partial && seg.text) {
+            appendTranscript(seg.text, false);
+            S.segmentCount++;
+          }
+        }
+        el('val-segments').textContent = S.segmentCount;
+      }
+      if (d.snapshot && d.snapshot.graph) {
+        const g = d.snapshot.graph;
+        const nodes = [];
+        if (g.nodes) {
+          for (const [nid, ns] of Object.entries(g.nodes)) {
+            if (ns.state === 'active') nodes.push({id: ns.id, label: ns.label, group: ns.group});
+          }
+        }
+        if (nodes.length > 0) applyGraphMirror({nodes, edges: g.edges || []});
+      }
+      break;
+
+    case 'status':
+      if (d.status === 'connected') {
+        setDot('dot-ws', 'ok');
+      }
+      break;
+
+    case 'pong':
+      break;
+  }
+}
+
+// ════════════════════════════════════════════
+//  METRICS UPDATE
+// ════════════════════════════════════════════
+function updateMetrics(m) {
+  // Session info
+  if (m.current_session_id) {
+    if (!S.sessionId) {
+      // Reconnecting to an active session (e.g. page refresh)
+      S.sessionId = m.current_session_id;
+      S.sessionStart = S.sessionStart || Date.now();
+      el('hdr-session').textContent = m.current_session_id;
+      showLivePhase();
+    }
+  }
+
+  // STT detected language
+  if (m.stt_language) {
+    el('val-lang').textContent = m.stt_language.toUpperCase();
+  }
+
+  // STT latency
+  const sttLast = m.stt_last_duration ? (m.stt_last_duration * 1000).toFixed(0) + 'ms' : '--';
+  const sttAvg = m.stt_avg_duration ? (m.stt_avg_duration * 1000).toFixed(0) + 'ms' : '--';
+  el('m-stt-lat').textContent = sttLast + ' / ' + sttAvg;
+
+  // LLM latency (seconds)
+  const llmLast = m.claude_last_duration ? m.claude_last_duration.toFixed(2) + 's' : '--';
+  const llmAvg = m.claude_avg_duration ? m.claude_avg_duration.toFixed(2) + 's' : '--';
+  el('m-llm-lat').textContent = llmLast + ' / ' + llmAvg;
+
+  // Graph
+  const activeNodes = m.active_nodes || 0;
+  el('m-graph').textContent = activeNodes + ' / 24';
+
+  // Churn
+  const nAdd = m.nodes_added_per_min || 0;
+  const nRem = m.nodes_removed_per_min || 0;
+  el('m-churn').textContent = '+' + nAdd + ' / -' + nRem;
+
+  // Parse
+  const parseOk = m.llm_parse_ok || 0;
+  const parseFail = m.llm_parse_fail || 0;
+  el('m-parse').textContent = parseOk + ' ok / ' + parseFail + ' fail';
+
+  // Cost
+  const cost = m.llm_session_cost || 0;
+  el('m-cost').textContent = '$' + cost.toFixed(4);
+
+  // Circuit breaker (aggregated across the chain)
+  const cbState = m.cb_state || 'closed';
+  el('m-cb').textContent = cbState;
+  el('m-cb').style.color = cbState === 'closed' ? '' : cbState === 'open' ? 'var(--rose)' : 'var(--amber)';
+
+  // LLM chain — render tier list with serving badge + breaker state
+  if (Array.isArray(m.llm_tiers)) {
+    renderLLMTiers(m.llm_tiers, m.llm_serving || '');
+    const label = el('llm-chain-state');
+    if (label) {
+      if (cbState === 'open') {
+        label.textContent = 'ALL TIERS DOWN';
+        label.style.color = 'var(--rose)';
+      } else if (cbState === 'degraded') {
+        label.textContent = 'degraded';
+        label.style.color = 'var(--amber)';
+      } else {
+        label.textContent = '';
+        label.style.color = '';
+      }
+    }
+  }
+
+  // FPS
+  el('m-fps').textContent = m.frontend_fps ? Math.round(m.frontend_fps) : '--';
+
+  // STT/LLM dots from metrics
+  if (m.chunks_processed > 0) {
+    setDot('dot-stt', 'ok');
+  }
+  if (m.cb_state === 'open') {
+    setDot('dot-llm', 'warn');
+    el('val-llm').textContent = 'circuit breaker open';
+  }
+
+  // STT backend — highlight active (live view only, don't touch setup form)
+  const sttBackend = m.stt_backend || 'remote';
+  el('stt-options').querySelectorAll('.stt-option').forEach(opt => {
+    const val = opt.dataset.backend;
+    opt.classList.toggle('active', val === sttBackend);
+    const radio = opt.querySelector('input[type="radio"]');
+    if (radio) radio.checked = val === sttBackend;
+  });
+
+}
+
+// ════════════════════════════════════════════
+//  TRANSCRIPT
+// ════════════════════════════════════════════
+function appendTranscript(text, isPartial) {
+  const box = el('transcript-text');
+  if (isPartial) {
+    let p = box.querySelector('.t-partial');
+    if (!p) {
+      p = document.createElement('span');
+      p.className = 't-partial';
+      box.appendChild(p);
+    }
+    p.textContent = text + ' ';
+  } else {
+    const partial = box.querySelector('.t-partial');
+    if (partial) partial.remove();
+    box.querySelectorAll('.t-chunk:not(.faded)').forEach(c => c.classList.add('faded'));
+    const s = document.createElement('span');
+    s.className = 't-chunk';
+    s.textContent = text + ' ';
+    box.appendChild(s);
+  }
+  const bar = el('transcript-bar');
+  bar.scrollTop = bar.scrollHeight;
+}
+
+// ════════════════════════════════════════════
+//  AUDIO CAPTURE + VAD
+// ════════════════════════════════════════════
+async function initAudioDevices() {
+  try {
+    // Request permission first
+    const tempStream = await navigator.mediaDevices.getUserMedia({audio: true});
+    tempStream.getTracks().forEach(t => t.stop());
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+    const picker = el('device-picker');
+    picker.innerHTML = '';
+
+    audioInputs.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || ('Microphone ' + (i + 1));
+      picker.appendChild(opt);
+    });
+
+    // Restore last selected device
+    const saved = localStorage.getItem('livemind_audio_device');
+    if (saved && audioInputs.some(d => d.deviceId === saved)) {
+      picker.value = saved;
+    }
+  } catch(e) {
+    const picker = el('device-picker');
+    picker.innerHTML = '<option value="">Microphone access denied</option>';
+    console.warn('Audio permission denied:', e);
+  }
+}
+
+async function startCapture() {
+  const deviceId = el('device-picker').value;
+  if (!deviceId) return;
+
+  localStorage.setItem('livemind_audio_device', deviceId);
+
+  // Stop existing
+  stopCapture();
+
+  try {
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: {exact: deviceId}, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+
+    S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    S.sampleRate = S.audioCtx.sampleRate;
+    S.preRollMax = Math.floor(S.sampleRate * PRE_ROLL_SECONDS);
+
+    const source = S.audioCtx.createMediaStreamSource(S.stream);
+
+    // Analyser for meter + waveform
+    S.analyser = S.audioCtx.createAnalyser();
+    S.analyser.fftSize = 2048;
+    S.analyser.smoothingTimeConstant = 0.3;
+    source.connect(S.analyser);
+
+    // ScriptProcessor for raw PCM + VAD
+    // Buffer size ~30ms: at 48kHz, 2048 samples ≈ 42ms, 1024 ≈ 21ms
+    const bufSize = 2048;
+    S.processor = S.audioCtx.createScriptProcessor(bufSize, 1, 1);
+    S.processor.onaudioprocess = onAudioProcess;
+    source.connect(S.processor);
+    S.processor.connect(S.audioCtx.destination); // required for processor to fire
+
+    S.capturing = true;
+    S.muted = false;
+    S.preRollBuf = [];
+    S.speechBuf = [];
+    S.smoothedRms = 0;
+    S.isSpeaking = false;
+    S.onsetCount = 0;
+    S.offsetCount = 0;
+    S.vadActive = true;
+
+    el('btn-start').textContent = 'Stop';
+    el('btn-start').classList.remove('btn-primary');
+    el('btn-start').classList.add('btn-stop');
+    el('btn-mute').textContent = 'Mute';
+    el('btn-mute').classList.remove('btn-muted');
+
+    requestAnimationFrame(meterLoop);
+  } catch(e) {
+    console.error('Start capture failed:', e);
+  }
+}
+
+function stopCapture() {
+  S.capturing = false;
+  S.vadActive = false;
+
+  if (S.processor) {
+    S.processor.disconnect();
+    S.processor.onaudioprocess = null;
+    S.processor = null;
+  }
+  if (S.analyser) { S.analyser.disconnect(); S.analyser = null; }
+  if (S.stream) { S.stream.getTracks().forEach(t => t.stop()); S.stream = null; }
+  if (S.audioCtx) { S.audioCtx.close(); S.audioCtx = null; }
+
+  S.isSpeaking = false;
+  S.preRollBuf = [];
+  S.speechBuf = [];
+
+  el('btn-start').textContent = 'Start';
+  el('btn-start').classList.add('btn-primary');
+  el('btn-start').classList.remove('btn-stop');
+  el('vad-dot').className = 'vad-dot';
+  el('vad-label').textContent = 'No Input';
+  el('meter-fill').style.height = '0%';
+  el('meter-db').textContent = '-Inf dB';
+}
+
+function toggleMute() {
+  S.muted = !S.muted;
+  el('btn-mute').textContent = S.muted ? 'Unmute' : 'Mute';
+  el('btn-mute').classList.toggle('btn-muted', S.muted);
+}
+
+function onAudioProcess(e) {
+  const input = e.inputBuffer.getChannelData(0);
+  const samples = new Float32Array(input);
+
+  // Compute RMS
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+  const rms = Math.sqrt(sum / samples.length);
+
+  // VAD — capture speaking state BEFORE processVAD may change it
+  S.smoothedRms = VAD.alpha * rms + (1 - VAD.alpha) * S.smoothedRms;
+  const wasSpeaking = S.isSpeaking;
+  const vadEvent = processVAD(S.smoothedRms);
+
+  if (vadEvent === 'speech_start') {
+    // Prepend pre-roll and start accumulating
+    S.speechBuf = S.preRollBuf.slice();
+    S.preRollBuf = [];
+    for (let i = 0; i < samples.length; i++) S.speechBuf.push(samples[i]);
+    console.log('[VAD] speech_start, pre-roll samples:', S.speechBuf.length);
+  } else if (wasSpeaking || vadEvent === 'speech_end') {
+    // Accumulate speech (use wasSpeaking since processVAD clears S.isSpeaking on speech_end)
+    for (let i = 0; i < samples.length; i++) S.speechBuf.push(samples[i]);
+
+    const duration = S.speechBuf.length / S.sampleRate;
+
+    if (vadEvent === 'speech_end' || duration >= MAX_SPEECH_SECONDS) {
+      console.log('[VAD]', vadEvent === 'speech_end' ? 'speech_end' : 'max_duration',
+        'duration:', duration.toFixed(2) + 's, samples:', S.speechBuf.length);
+      // Send if long enough
+      if (duration >= MIN_SPEECH_SECONDS && !S.muted) {
+        sendAudioChunk(S.speechBuf);
+      } else {
+        console.log('[VAD] discarded: duration', duration.toFixed(2) + 's < min', MIN_SPEECH_SECONDS + 's, or muted:', S.muted);
+      }
+      S.speechBuf = [];
+    }
+  } else {
+    // Silence — keep pre-roll buffer
+    for (let i = 0; i < samples.length; i++) S.preRollBuf.push(samples[i]);
+    if (S.preRollBuf.length > S.preRollMax) {
+      S.preRollBuf = S.preRollBuf.slice(-S.preRollMax);
+    }
+  }
+}
+
+function processVAD(smoothedRms) {
+  if (!S.isSpeaking) {
+    if (smoothedRms > VAD.onsetThreshold) {
+      S.onsetCount++;
+      if (S.onsetCount >= VAD.onsetFrames) {
+        S.isSpeaking = true;
+        S.onsetCount = 0;
+        S.offsetCount = 0;
+        updateVADUI(true);
+        return 'speech_start';
+      }
+    } else {
+      S.onsetCount = 0;
+    }
+  } else {
+    if (smoothedRms < VAD.offsetThreshold) {
+      S.offsetCount++;
+      if (S.offsetCount >= VAD.offsetFrames) {
+        S.isSpeaking = false;
+        S.offsetCount = 0;
+        S.onsetCount = 0;
+        updateVADUI(false);
+        return 'speech_end';
+      }
+    } else {
+      S.offsetCount = 0;
+    }
+  }
+  return null;
+}
+
+function updateVADUI(speaking) {
+  const dot = el('vad-dot');
+  const label = el('vad-label');
+  if (speaking) {
+    dot.className = 'vad-dot speaking';
+    label.textContent = 'Speaking';
+  } else {
+    dot.className = 'vad-dot silent';
+    label.textContent = 'Silent';
+  }
+}
+
+function sendAudioChunk(samples) {
+  const f32 = new Float32Array(samples);
+  const duration = (f32.length / S.sampleRate).toFixed(2);
+  console.log('[SEND] audio_chunk: samples=' + f32.length + ', duration=' + duration + 's, rate=' + S.sampleRate);
+  const bytes = new Uint8Array(f32.buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const b64 = btoa(binary);
+  console.log('[SEND] base64 length:', b64.length, 'WS ready:', S.ws && S.ws.readyState === 1);
+  wsSend({
+    type: 'audio_chunk',
+    data: b64,
+    sample_rate: S.sampleRate,
+  });
+}
+
+// ════════════════════════════════════════════
+//  METER + WAVEFORM LOOP
+// ════════════════════════════════════════════
+function meterLoop() {
+  if (!S.capturing || !S.analyser) return;
+
+  const buf = new Float32Array(S.analyser.fftSize);
+  S.analyser.getFloatTimeDomainData(buf);
+
+  // RMS
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  const rms = Math.sqrt(sum / buf.length);
+
+  // Meter
+  const pct = Math.min(100, rms * 500); // scale for visual
+  const fill = el('meter-fill');
+  fill.style.height = pct + '%';
+
+  // Color
+  if (pct > 80) fill.style.background = 'var(--rose)';
+  else if (pct > 50) fill.style.background = 'var(--amber)';
+  else fill.style.background = 'var(--green)';
+
+  // dB
+  const db = rms > 0 ? (20 * Math.log10(rms)).toFixed(1) : '-Inf';
+  el('meter-db').textContent = db + ' dB';
+
+  // Waveform
+  drawWaveform(buf);
+
+  requestAnimationFrame(meterLoop);
+}
+
+function drawWaveform(buf) {
+  const canvas = el('waveform');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.clientWidth;
+  const H = canvas.height = canvas.clientHeight;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(52,211,153,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+
+  const step = Math.ceil(buf.length / W);
+  const mid = H / 2;
+  for (let i = 0; i < W; i++) {
+    const idx = i * step;
+    const v = idx < buf.length ? buf[idx] : 0;
+    const y = mid + v * mid * 3;
+    if (i === 0) ctx.moveTo(i, y);
+    else ctx.lineTo(i, y);
+  }
+  ctx.stroke();
+
+  // Center line
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.beginPath();
+  ctx.moveTo(0, mid);
+  ctx.lineTo(W, mid);
+  ctx.stroke();
+}
+
+// ════════════════════════════════════════════
+//  MODEL SWITCHING
+// ════════════════════════════════════════════
+async function loadSTTBackends() {
+  try {
+    const resp = await fetch('/v1/stt/backends');
+    const data = await resp.json();
+    const active = data.active?.backend || 'remote';
+
+    // Populate live STT picker — only show available backends
+    const container = el('stt-options');
+    container.innerHTML = '';
+
+    for (const [key, b] of Object.entries(data.backends)) {
+      if (!b.available) continue;  // hide unavailable (stopped) backends
+      const div = document.createElement('div');
+      div.className = 'stt-option' + (key === active ? ' active' : '');
+      div.dataset.backend = key;
+      div.innerHTML = `
+        <input type="radio" name="stt" value="${key}" ${key === active ? 'checked' : ''}>
+        <div class="stt-option-info">
+          <div class="stt-option-name">${b.label} <span class="s-dot ok" style="display:inline-block;width:6px;height:6px;vertical-align:middle;margin-left:4px;"></span></div>
+          <div class="stt-option-note">${b.note}</div>
+        </div>
+      `;
+      div.addEventListener('click', () => switchSTT(key));
+      container.appendChild(div);
+    }
+  } catch(e) {
+    console.warn('Failed to load STT backends:', e);
+  }
+}
+
+async function switchSTT(backend) {
+  try {
+    await fetch('/v1/stt/active', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({backend}),
+    });
+    // Update UI
+    document.querySelectorAll('.stt-option').forEach(opt => {
+      opt.classList.toggle('active', opt.dataset.backend === backend);
+      const radio = opt.querySelector('input[type="radio"]');
+      if (radio) radio.checked = opt.dataset.backend === backend;
+    });
+  } catch(e) {
+    console.warn('STT switch failed:', e);
+  }
+}
+
+const LLM_LABELS = {
+  hugin:     {name: 'Hugin',          note: 'Local (Ollama)'},
+  gemini:    {name: 'Gemini Flash',   note: 'Google cloud'},
+  anthropic: {name: 'Claude',         note: 'Anthropic cloud'},
+};
+
+function renderLLMTiers(tiers, serving) {
+  const wrap = el('llm-tiers');
+  if (!wrap) return;
+  const sigParts = tiers.map(t => `${t.provider}:${t.model}:${t.state}:${t.failures}`);
+  sigParts.push(`serving=${serving}`);
+  const sig = sigParts.join('|');
+  if (wrap.dataset.sig === sig) return;
+  wrap.dataset.sig = sig;
+
+  wrap.innerHTML = '';
+  tiers.forEach((tier, i) => {
+    const isServing = tier.provider === serving && tier.state !== 'open';
+    const row = document.createElement('div');
+    row.className = 'llm-tier';
+    if (isServing) row.classList.add('serving');
+    if (tier.state === 'open') row.classList.add('breaker-open');
+    else if (tier.state === 'half_open') row.classList.add('breaker-half_open');
+
+    const meta = LLM_LABELS[tier.provider] || {name: tier.provider, note: ''};
+
+    let badgeClass, badgeText;
+    if (isServing) {
+      badgeClass = 'serving';
+      badgeText = 'serving';
+    } else if (tier.state === 'open') {
+      const retry = tier.retry_in > 0 ? ` ${Math.ceil(tier.retry_in)}s` : '';
+      badgeClass = 'open';
+      badgeText = 'open' + retry;
+    } else if (tier.state === 'half_open') {
+      badgeClass = 'half_open';
+      badgeText = 'probing';
+    } else {
+      badgeClass = 'standby';
+      badgeText = i === 0 ? 'primary' : 'standby';
+    }
+
+    row.innerHTML = `
+      <div class="llm-rank">${i + 1}</div>
+      <div class="llm-tier-info">
+        <div class="llm-tier-name">${meta.name} <span style="color:var(--dim);font-weight:normal;">${tier.model}</span></div>
+        <div class="llm-tier-note">${meta.note}${tier.failures > 0 ? ' · ' + tier.failures + ' failures' : ''}</div>
+      </div>
+      <span class="llm-badge ${badgeClass}">${badgeText}</span>
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+// ════════════════════════════════════════════
+//  GRAPH MIRROR (D3)
+// ════════════════════════════════════════════
+let gmSvg, gmSim, gmGEdge, gmGNode, gmW, gmH, gmInited = false;
+
+function gmColor(group) {
+  if (!S.gmCmap[group]) S.gmCmap[group] = COLORS[S.gmCi++ % COLORS.length];
+  return S.gmCmap[group];
+}
+
+function initGraphMirror() {
+  if (gmInited) return;
+  gmInited = true;
+  const wrap = el('graph-mirror');
+  gmW = wrap.clientWidth || 300;
+  gmH = wrap.clientHeight || 300;
+
+  gmSvg = d3.select('#gm-svg').attr('width', gmW).attr('height', gmH);
+
+  const defs = gmSvg.append('defs');
+  const glow = defs.append('filter').attr('id','gm-glow')
+    .attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+  glow.append('feGaussianBlur').attr('stdDeviation','3').attr('result','b');
+  const fm = glow.append('feMerge');
+  fm.append('feMergeNode').attr('in','b');
+  fm.append('feMergeNode').attr('in','SourceGraphic');
+
+  gmGEdge = gmSvg.append('g');
+  gmGNode = gmSvg.append('g');
+
+  gmSim = d3.forceSimulation()
+    .force('link', d3.forceLink().id(d => d.id).distance(80).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-200).distanceMax(250))
+    .force('center', d3.forceCenter(gmW / 2, gmH / 2).strength(0.05))
+    .force('collide', d3.forceCollide().radius(30).strength(0.8))
+    .force('x', d3.forceX(gmW / 2).strength(0.02))
+    .force('y', d3.forceY(gmH / 2).strength(0.02))
+    .alphaDecay(0.03)
+    .velocityDecay(0.4)
+    .on('tick', gmTick);
+
+  // Handle resize
+  new ResizeObserver(() => {
+    gmW = wrap.clientWidth || 300;
+    gmH = wrap.clientHeight || 300;
+    gmSvg.attr('width', gmW).attr('height', gmH);
+    gmSim.force('center', d3.forceCenter(gmW / 2, gmH / 2));
+    gmSim.force('x', d3.forceX(gmW / 2).strength(0.02));
+    gmSim.force('y', d3.forceY(gmH / 2).strength(0.02));
+    if (S.gmNodes.length) gmSim.alpha(0.1).restart();
+  }).observe(wrap);
+}
+
+function applyGraphMirror(g) {
+  const prev = new Set(S.gmNodes.map(n => n.id));
+  const nids = new Set(g.nodes.map(n => n.id));
+
+  S.gmNodes = g.nodes.map(n => {
+    const o = S.gmNodes.find(x => x.id === n.id);
+    return {
+      ...n,
+      x: o ? o.x : gmW / 2 + (Math.random() - 0.5) * 100,
+      y: o ? o.y : gmH / 2 + (Math.random() - 0.5) * 100,
+      vx: o ? o.vx : 0,
+      vy: o ? o.vy : 0,
+      isNew: !prev.has(n.id),
+      color: gmColor(n.group),
+    };
+  });
+
+  S.gmEdges = g.edges.filter(e => {
+    const s = e.source?.id || e.source;
+    const t = e.target?.id || e.target;
+    return nids.has(s) && nids.has(t);
+  }).map(e => ({
+    source: e.source?.id || e.source,
+    target: e.target?.id || e.target,
+    label: e.label || '',
+  }));
+
+  el('gm-count').textContent = S.gmNodes.length + ' nodes';
+  renderGraphMirror();
+}
+
+function renderGraphMirror() {
+  // Edges
+  const eData = gmGEdge.selectAll('.gm-e').data(S.gmEdges, d => d.source + '->' + d.target);
+  eData.exit().transition().duration(300).style('opacity', 0).remove();
+  const eEnter = eData.enter().append('path').attr('class', 'gm-e gm-edge').style('opacity', 0);
+  eEnter.transition().duration(500).style('opacity', 1);
+
+  // Nodes
+  const nData = gmGNode.selectAll('.gm-n').data(S.gmNodes, d => d.id);
+  nData.exit().transition().duration(300).style('opacity', 0).remove();
+
+  const nEnter = nData.enter().append('g').attr('class', 'gm-n').style('opacity', 0);
+  nEnter.append('circle').attr('class', 'gm-node-outer').attr('r', 14);
+  nEnter.append('circle').attr('class', 'gm-node-inner').attr('r', 11);
+  nEnter.append('circle').attr('class', 'gm-node-dot').attr('r', 2).attr('filter', 'url(#gm-glow)');
+  nEnter.append('text').attr('class', 'gm-label').attr('dy', 24);
+
+  nEnter.transition().duration(500).style('opacity', 1);
+
+  const merged = nEnter.merge(nData);
+  merged.select('.gm-node-outer').attr('stroke', d => d.color);
+  merged.select('.gm-node-inner').attr('fill', d => d.color);
+  merged.select('.gm-node-dot').attr('fill', d => d.color);
+  merged.select('.gm-label').text(d => d.label);
+
+  gmSim.nodes(S.gmNodes);
+  gmSim.force('link').links(S.gmEdges);
+  gmSim.alpha(0.4).restart();
+}
+
+function gmTick() {
+  gmGEdge.selectAll('.gm-e').attr('d', d => {
+    if (!d.source.x) return '';
+    const dx = d.target.x - d.source.x;
+    const dy = d.target.y - d.source.y;
+    const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+  });
+
+  gmGNode.selectAll('.gm-n')
+    .attr('transform', d => `translate(${d.x},${d.y})`);
+}
+
+// ════════════════════════════════════════════
+//  PHASE TRANSITIONS
+// ════════════════════════════════════════════
+function showSetupPhase() {
+  el('phase-setup').classList.remove('hidden');
+  el('phase-live').classList.add('hidden');
+  el('hdr-session').textContent = '---';
+  el('hdr-topic').textContent = '';
+  el('hdr-duration').textContent = '00:00';
+  el('hdr-end-session').style.display = 'none';
+}
+
+function showLivePhase() {
+  el('phase-setup').classList.add('hidden');
+  el('phase-live').classList.remove('hidden');
+  el('hdr-end-session').style.display = 'inline-block';
+  initGraphMirror();
+  resetLiveMetrics();
+}
+
+function resetLiveMetrics() {
+  // Reset all metric displays to fresh state
+  el('val-segments').textContent = '0';
+  el('val-chars').textContent = '0';
+  el('val-lang').textContent = '--';
+  el('m-stt-lat').textContent = '-- / --';
+  el('m-llm-lat').textContent = '-- / --';
+  el('m-graph').textContent = '0 / 24';
+  el('m-churn').textContent = '+0 / -0';
+  el('m-parse').textContent = '0 ok / 0 fail';
+  el('m-cost').textContent = '$0.00';
+  el('m-cb').textContent = 'closed';
+  el('m-cb').style.color = '';
+  el('m-fps').textContent = '--';
+  el('val-stt').textContent = 'idle';
+  el('val-llm').textContent = 'idle';
+  setDot('dot-stt', '');
+  setDot('dot-llm', '');
+  el('transcript-text').innerHTML = '';
+  S.segmentCount = 0;
+  S.totalChars = 0;
+  S.gmNodes = []; S.gmEdges = []; S.gmCmap = {}; S.gmCi = 0;
+}
+
+// ════════════════════════════════════════════
+//  SESSION CONTROLS
+// ════════════════════════════════════════════
+async function startSession() {
+  const topic = el('setup-topic').value.trim();
+  const lang = el('setup-lang').value;
+
+  // Apply STT backend (default: faster-whisper) + language
+  try {
+    await fetch('/v1/stt/active', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({backend: 'remote', language: lang}),
+    });
+  } catch(e) { console.warn('STT config failed:', e); }
+
+  // LLM chain is managed server-side (see /v1/llm/providers); no per-session
+  // POST required. Monitor renders chain status from metrics.
+
+  // Create session
+  try {
+    const resp = await fetch('/v1/sessions/new', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({topic}),
+    });
+    const data = await resp.json();
+    S.sessionId = data.id;
+    S.segmentCount = 0;
+    S.sessionStart = Date.now();
+    el('hdr-session').textContent = data.id;
+    el('hdr-topic').textContent = topic;
+    el('val-segments').textContent = '0';
+    el('transcript-text').innerHTML = '';
+    S.gmNodes = []; S.gmEdges = []; S.gmCmap = {}; S.gmCi = 0;
+
+    // Sync language picker in live view
+    el('lang-picker').value = lang;
+
+    showLivePhase();
+
+    // Show selected device name in live view
+    const devicePicker = el('device-picker');
+    const selectedOpt = devicePicker.options[devicePicker.selectedIndex];
+    el('live-device-name').textContent = selectedOpt ? selectedOpt.textContent : '--';
+
+    // Auto-start audio capture
+    startCapture();
+  } catch(e) {
+    console.warn('Start session failed:', e);
+  }
+}
+
+async function endSession() {
+  if (!S.sessionId) return;
+  if (!confirm('End the current session?')) return;
+
+  // Stop audio first
+  stopCapture();
+
+  try {
+    await fetch('/v1/sessions/' + S.sessionId + '/end', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({}),
+    });
+  } catch(e) {
+    console.warn('End session failed:', e);
+  }
+
+  S.sessionId = null;
+  S.sessionStart = null;
+  S.segmentCount = 0;
+  showSetupPhase();
+}
+
+// ════════════════════════════════════════════
+//  SESSION TIMER
+// ════════════════════════════════════════════
+setInterval(() => {
+  if (S.sessionStart) {
+    const elapsed = Math.floor((Date.now() - S.sessionStart) / 1000);
+    const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const s = String(elapsed % 60).padStart(2, '0');
+    el('hdr-duration').textContent = m + ':' + s;
+  }
+}, 1000);
+
+// ════════════════════════════════════════════
+//  LANGUAGE SELECTOR
+// ════════════════════════════════════════════
+function onLanguageChange() {
+  const lang = el('lang-picker').value;
+  fetch('/v1/stt/active', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({language: lang}),
+  }).catch(e => console.warn('Language change failed:', e));
+}
+
+// ════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════
+function el(id) { return document.getElementById(id); }
+
+function setDot(id, state) {
+  const dot = el(id);
+  dot.className = 's-dot' + (state ? ' ' + state : '');
+}
+
+// ════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════
+(async function init() {
+  initAudioDevices();
+  connectWS();
+  loadSTTBackends();
+
+  // Setup phase
+  el('btn-start-session').addEventListener('click', startSession);
+  el('setup-topic').addEventListener('keydown', e => {
+    if (e.key === 'Enter') startSession();
+  });
+
+  // Live phase
+  el('btn-start').addEventListener('click', () => {
+    if (S.capturing) stopCapture();
+    else startCapture();
+  });
+  el('btn-mute').addEventListener('click', toggleMute);
+  el('hdr-end-session').addEventListener('click', endSession);
+  el('lang-picker').addEventListener('change', onLanguageChange);
+})();
+</script>
+</body>
+</html>

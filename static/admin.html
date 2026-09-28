@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveMind — System Monitor</title>
+<link rel="icon" type="image/svg+xml" href="/livemind-favicon.svg">
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root {
+  --bg: #080814;
+  --panel: #0c0d18;
+  --card: rgba(255,255,255,0.04);
+  --bdr: rgba(255,255,255,0.08);
+  --txt: #d4d6e0;
+  --dim: #7a7d94;
+  --bright: #f2f2f6;
+  --green: #34d399;
+  --purple: #a78bfa;
+  --rose: #fb7185;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== HEADER ===== */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--bdr);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+.hdr-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hdr-brand img { height: 22px; opacity: 0.85; }
+.hdr-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.hdr-session {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--txt);
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+.hdr-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+}
+.hdr-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+}
+.hdr-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--dim);
+  display: inline-block;
+  transition: all .3s;
+}
+.hdr-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(52,211,153,0.4); }
+.hdr-dot.err { background: var(--rose); box-shadow: 0 0 6px rgba(251,113,133,0.4); }
+
+/* ===== MAIN GRID ===== */
+#main {
+  display: grid;
+  grid-template-columns: 300px 1fr 300px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.col {
+  overflow-y: auto;
+  padding: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.04) transparent;
+}
+.col-left { border-right: 1px solid var(--bdr); background: var(--panel); }
+.col-center { background: var(--bg); display: flex; flex-direction: column; }
+.col-right { border-left: 1px solid var(--bdr); background: var(--panel); }
+
+/* ===== SECTION LABELS ===== */
+.sec {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.sec:not(:first-child) { margin-top: 16px; }
+
+/* ===== METRIC ROWS ===== */
+.m-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.m-key {
+  font-size: 12px;
+  color: var(--dim);
+}
+.m-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--bright);
+  font-weight: 500;
+}
+.m-val.good { color: var(--green); }
+.m-val.warn { color: var(--amber); }
+.m-val.bad { color: var(--rose); }
+
+/* ===== STATUS DOTS ===== */
+.s-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dim);
+  transition: all .3s;
+}
+.s-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(52,211,153,0.4); }
+.s-dot.warn { background: var(--amber); box-shadow: 0 0 6px rgba(251,191,36,0.4); }
+.s-dot.err { background: var(--rose); box-shadow: 0 0 6px rgba(251,113,133,0.4); }
+
+/* ===== METRIC CARDS ===== */
+.m-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 6px 0;
+}
+.m-card {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.m-card-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 3px;
+}
+.m-card-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--bright);
+}
+.m-card-val.sm { font-size: 11px; }
+
+/* ===== GRAPH MIRROR ===== */
+#graph-mirror {
+  flex: 1;
+  min-height: 200px;
+  position: relative;
+  overflow: hidden;
+}
+#graph-mirror svg { width: 100%; height: 100%; display: block; }
+.gm-edge { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 0.8; }
+.gm-node-outer { fill: none; stroke-width: 0.8; opacity: 0.3; }
+.gm-node-inner { opacity: 0.1; }
+.gm-node-dot { opacity: 0.9; }
+.gm-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 8px; font-weight: 500;
+  fill: var(--bright);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* ===== TRANSCRIPT FEED ===== */
+#transcript-feed {
+  flex-shrink: 0;
+  height: 140px;
+  border-top: 1px solid var(--bdr);
+  overflow-y: auto;
+  padding: 8px 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.04) transparent;
+}
+#transcript-feed .t-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+.t-chunk { color: var(--txt); display: inline; }
+.t-chunk.faded { color: var(--dim); }
+.t-partial { color: var(--dim); display: inline; font-style: italic; opacity: 0.6; }
+
+/* ===== BACKEND LIST ===== */
+.backend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.backend-row:last-child { border-bottom: none; }
+.backend-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--txt);
+}
+.backend-note {
+  font-size: 11px;
+  color: var(--dim);
+  margin-left: auto;
+}
+
+/* ===== LAST TEXT ===== */
+.last-text {
+  font-size: 12px;
+  color: var(--txt);
+  line-height: 1.5;
+  max-height: 40px;
+  overflow: hidden;
+  opacity: 0.7;
+  margin: 4px 0;
+}
+
+/* ===== SESSION LIST ===== */
+.session-row {
+  display: flex;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.session-row:last-child { border-bottom: none; }
+.session-row .s-topic { color: var(--txt); flex: 1; }
+.session-row .s-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--dim);
+  font-size: 10px;
+}
+
+/* ===== ACTIVITY LOG ===== */
+.act-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.act-row:last-child { border-bottom: none; }
+.act-type {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.act-type.recap { background: rgba(167,139,250,0.1); color: var(--purple); }
+.act-type.clean { background: rgba(52,211,153,0.1); color: var(--green); }
+.act-type.synthesis { background: rgba(96,165,250,0.1); color: var(--blue); }
+.act-status { color: var(--dim); font-size: 10px; }
+.act-status.completed { color: var(--green); }
+.act-status.error { color: var(--rose); }
+.act-status.started { color: var(--amber); }
+.act-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: var(--dim);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ===== DISCONNECT BANNER ===== */
+#disconnect-banner {
+  display: none;
+  background: rgba(251,113,133,0.15);
+  border-bottom: 1px solid rgba(251,113,133,0.3);
+  padding: 6px 20px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--rose);
+  text-align: center;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div class="hdr-brand">
+    <img src="/livemind-logo-clean.svg" alt="LiveMind">
+    <span class="hdr-title">System Monitor</span>
+  </div>
+  <span class="hdr-session" id="h-session">No active session</span>
+  <span class="hdr-meta" id="h-topic"></span>
+  <span class="hdr-meta" id="h-duration"></span>
+  <div class="hdr-right">
+    <span><span class="hdr-dot" id="h-ws-dot"></span> WS</span>
+    <span id="h-clients">0 clients</span>
+    <span id="h-uptime">--</span>
+    <a href="/doc/admin" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--dim);text-decoration:none;padding:4px 10px;border:1px solid var(--bdr);border-radius:100px;transition:all .2s;" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='';this.style.color='var(--dim)'">Docs</a>
+    <a href="/sessions" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--dim);text-decoration:none;padding:4px 10px;border:1px solid var(--bdr);border-radius:100px;transition:all .2s;" onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';this.style.color='var(--txt)'" onmouseout="this.style.borderColor='';this.style.color='var(--dim)'">← Sessions</a>
+  </div>
+</div>
+
+<div id="disconnect-banner">DISCONNECTED — RECONNECTING...</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT: PIPELINE HEALTH -->
+  <div class="col col-left">
+    <div class="sec">STT Pipeline</div>
+    <div class="m-row"><div class="s-dot" id="d-stt"></div><span class="m-key">Backend</span><span class="m-val" id="v-stt-backend">--</span></div>
+    <div class="m-row"><span class="m-key">Language</span><span class="m-val" id="v-stt-lang">--</span></div>
+    <div class="m-grid">
+      <div class="m-card"><div class="m-card-label">STT Latency</div><div class="m-card-val sm" id="v-stt-lat">-- / --</div></div>
+      <div class="m-card"><div class="m-card-label">E2E Latency</div><div class="m-card-val sm" id="v-e2e-lat">-- / --</div></div>
+      <div class="m-card"><div class="m-card-label">Chunks</div><div class="m-card-val" id="v-chunks">0</div></div>
+      <div class="m-card"><div class="m-card-label">Skipped</div><div class="m-card-val" id="v-skipped">0</div></div>
+    </div>
+
+    <div class="sec">LLM Pipeline</div>
+    <div class="m-row"><div class="s-dot" id="d-llm"></div><span class="m-key">Provider</span><span class="m-val" id="v-llm-provider">--</span></div>
+    <div class="m-row"><span class="m-key">Model</span><span class="m-val" id="v-llm-model">--</span></div>
+    <div class="m-grid">
+      <div class="m-card"><div class="m-card-label">LLM Latency</div><div class="m-card-val sm" id="v-llm-lat">-- / --</div></div>
+      <div class="m-card"><div class="m-card-label">Calls / Errors</div><div class="m-card-val sm" id="v-llm-calls">0 / 0</div></div>
+      <div class="m-card"><div class="m-card-label">Parse OK / Fail</div><div class="m-card-val sm" id="v-llm-parse">0 / 0</div></div>
+      <div class="m-card"><div class="m-card-label">Session Cost</div><div class="m-card-val" id="v-cost">$0.00</div></div>
+    </div>
+
+    <div class="sec">Circuit Breaker</div>
+    <div class="m-row"><span class="m-key">State</span><span class="m-val" id="v-cb-state">closed</span></div>
+    <div class="m-row"><span class="m-key">Failures</span><span class="m-val" id="v-cb-failures">0</span></div>
+
+    <div class="sec">Tokens</div>
+    <div class="m-row"><span class="m-key">Input</span><span class="m-val" id="v-tok-in">0</span></div>
+    <div class="m-row"><span class="m-key">Output</span><span class="m-val" id="v-tok-out">0</span></div>
+  </div>
+
+  <!-- CENTER: LIVE ACTIVITY -->
+  <div class="col col-center" style="padding:0;">
+    <div style="padding:10px 14px 0;">
+      <div class="sec" style="margin-bottom:4px;">Knowledge Graph</div>
+      <div style="display:flex;gap:16px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:6px;">
+        <span>Nodes: <span style="color:var(--bright)" id="v-nodes">0</span> / 24</span>
+        <span>Churn: <span style="color:var(--bright)" id="v-churn">+0 / -0</span></span>
+        <span>Segments: <span style="color:var(--bright)" id="v-segments">0</span></span>
+      </div>
+    </div>
+    <div id="graph-mirror"><svg id="gm-svg"></svg></div>
+    <div id="transcript-feed">
+      <div class="t-label">Live Transcript</div>
+      <div id="t-text"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: SYSTEM RESOURCES -->
+  <div class="col col-right">
+    <div class="sec">STT Backends</div>
+    <div id="stt-backends">
+      <div class="backend-row"><div class="s-dot" id="d-stt-remote"></div><span class="backend-name">faster-whisper</span><span class="backend-note" id="n-stt-remote">--</span></div>
+      <div class="backend-row"><div class="s-dot" id="d-stt-parakeet"></div><span class="backend-name">Parakeet TDT</span><span class="backend-note" id="n-stt-parakeet">--</span></div>
+      <div class="backend-row"><div class="s-dot" id="d-stt-canary"></div><span class="backend-name">Canary</span><span class="backend-note" id="n-stt-canary">--</span></div>
+    </div>
+
+    <div class="sec">System</div>
+    <div class="m-row"><span class="m-key">WS Clients</span><span class="m-val" id="v-ws-clients">0</span></div>
+    <div class="m-row"><span class="m-key">WS Reconnects</span><span class="m-val" id="v-ws-reconnects">0</span></div>
+    <div class="m-row"><span class="m-key">Transcript Queue</span><span class="m-val" id="v-queue">0</span></div>
+    <div class="m-row"><span class="m-key">Display FPS</span><span class="m-val" id="v-fps">--</span></div>
+    <div class="m-row"><span class="m-key">Audio RMS</span><span class="m-val" id="v-rms">--</span></div>
+    <div class="m-row"><span class="m-key">VAD State</span><span class="m-val" id="v-vad">--</span></div>
+    <div class="m-row"><span class="m-key">Last Restore</span><span class="m-val" id="v-restore">--</span></div>
+
+    <div class="sec">Last STT Output</div>
+    <div class="last-text" id="v-last-text">--</div>
+
+    <div class="sec">Last LLM Error</div>
+    <div class="last-text" id="v-last-error" style="color:var(--rose);">--</div>
+
+    <div class="sec">Post-Session Activity</div>
+    <div id="activity-log" style="max-height:160px;overflow-y:auto;scrollbar-width:thin;"></div>
+
+    <div class="sec">Today's Sessions</div>
+    <div id="session-list"></div>
+  </div>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let ws = null;
+let wsConnected = false;
+let reconnectDelay = 3000;
+let metricsInterval = null;
+let pingInterval = null;
+let sessionStart = null;
+let segmentCount = 0;
+
+// Graph mirror
+const COLORS = ['#34d399','#a78bfa','#fb7185','#fbbf24','#60a5fa','#22d3ee','#fb923c','#f0abfc','#2dd4bf','#a3e635'];
+const gmCmap = {};
+let gmCi = 0;
+let gmNodes = [], gmEdges = [];
+let gmSvg, gmSim, gmGEdge, gmGNode, gmW, gmH;
+
+// ════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════
+function el(id) { return document.getElementById(id); }
+
+function setDot(id, state) {
+  const d = el(id);
+  if (d) d.className = 's-dot' + (state ? ' ' + state : '');
+}
+
+function fmtDuration(secs) {
+  const m = String(Math.floor(secs / 60)).padStart(2, '0');
+  const s = String(Math.floor(secs % 60)).padStart(2, '0');
+  return m + ':' + s;
+}
+
+function fmtUptime(secs) {
+  if (secs < 3600) return Math.floor(secs / 60) + 'm';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return h + 'h ' + m + 'm';
+}
+
+// ════════════════════════════════════════════
+//  WEBSOCKET (READ-ONLY)
+// ════════════════════════════════════════════
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+  ws.onopen = () => {
+    wsConnected = true;
+    reconnectDelay = 3000;
+    el('h-ws-dot').className = 'hdr-dot ok';
+    el('disconnect-banner').style.display = 'none';
+    metricsInterval = setInterval(() => send({type:'get_metrics'}), 2000);
+    pingInterval = setInterval(() => send({type:'ping'}), 5000);
+  };
+
+  ws.onclose = () => {
+    wsConnected = false;
+    el('h-ws-dot').className = 'hdr-dot err';
+    el('disconnect-banner').style.display = '';
+    clearInterval(metricsInterval);
+    clearInterval(pingInterval);
+    setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
+  };
+
+  ws.onerror = () => { el('h-ws-dot').className = 'hdr-dot err'; };
+
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    switch (d.type) {
+      case 'metrics': updateMetrics(d); break;
+      case 'transcript':
+        if (d.text) appendTranscript(d.text, false);
+        segmentCount++;
+        el('v-segments').textContent = segmentCount;
+        setDot('d-stt', 'ok');
+        break;
+      case 'partial_transcript':
+        if (d.text) appendTranscript(d.text, true);
+        break;
+      case 'graph_update':
+        if (d.graph) applyGraphMirror(d.graph);
+        break;
+      case 'session_reset':
+        sessionStart = Date.now();
+        segmentCount = 0;
+        el('h-session').textContent = d.session_id || '--';
+        el('h-topic').textContent = d.topic || '';
+        el('v-segments').textContent = '0';
+        el('t-text').innerHTML = '';
+        gmNodes = []; gmEdges = [];
+        break;
+      case 'session_ended':
+        sessionStart = null;
+        el('h-session').textContent = 'No active session';
+        el('h-topic').textContent = '';
+        el('h-duration').textContent = '';
+        break;
+      case 'restore':
+        if (d.session_id) {
+          el('h-session').textContent = d.session_id;
+          sessionStart = sessionStart || Date.now();
+        }
+        if (d.segments) {
+          d.segments.forEach(seg => {
+            if (!seg.is_partial && seg.text) {
+              appendTranscript(seg.text, false);
+              segmentCount++;
+            }
+          });
+          el('v-segments').textContent = segmentCount;
+        }
+        if (d.snapshot && d.snapshot.graph) {
+          const g = d.snapshot.graph;
+          const nodes = [];
+          if (g.nodes) {
+            for (const [nid, ns] of Object.entries(g.nodes)) {
+              if (ns.state === 'active') nodes.push({id: ns.id, label: ns.label, group: ns.group});
+            }
+          }
+          if (nodes.length > 0) applyGraphMirror({nodes, edges: g.edges || []});
+        }
+        break;
+    }
+  };
+}
+
+function send(obj) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+// ════════════════════════════════════════════
+//  METRICS UPDATE
+// ════════════════════════════════════════════
+function updateMetrics(m) {
+  // Session
+  if (m.current_session_id) {
+    el('h-session').textContent = m.current_session_id;
+    if (!sessionStart) sessionStart = Date.now();
+  }
+
+  // Uptime
+  el('h-uptime').textContent = m.uptime ? 'up ' + fmtUptime(m.uptime) : '--';
+  el('h-clients').textContent = (m.ws_clients || 0) + ' clients';
+
+  // STT
+  el('v-stt-backend').textContent = m.stt_backend || '--';
+  el('v-stt-lang').textContent = m.stt_language ? m.stt_language.toUpperCase() : '--';
+  const sttLast = m.stt_last_duration ? (m.stt_last_duration * 1000).toFixed(0) + 'ms' : '--';
+  const sttAvg = m.stt_avg_duration ? (m.stt_avg_duration * 1000).toFixed(0) + 'ms' : '--';
+  el('v-stt-lat').textContent = sttLast + ' / ' + sttAvg;
+  const e2eLast = m.stt_e2e_last ? (m.stt_e2e_last * 1000).toFixed(0) + 'ms' : '--';
+  const e2eAvg = m.stt_e2e_avg ? (m.stt_e2e_avg * 1000).toFixed(0) + 'ms' : '--';
+  el('v-e2e-lat').textContent = e2eLast + ' / ' + e2eAvg;
+  el('v-chunks').textContent = m.chunks_processed || 0;
+  el('v-skipped').textContent = (m.chunks_skipped_silent || 0) + (m.chunks_skipped_catchup || 0);
+
+  if (m.chunks_processed > 0) setDot('d-stt', 'ok');
+
+  // LLM
+  el('v-llm-provider').textContent = m.llm_provider || '--';
+  el('v-llm-model').textContent = m.llm_model || '--';
+  const llmLast = m.claude_last_duration ? m.claude_last_duration.toFixed(1) + 's' : '--';
+  const llmAvg = m.claude_avg_duration ? m.claude_avg_duration.toFixed(1) + 's' : '--';
+  el('v-llm-lat').textContent = llmLast + ' / ' + llmAvg;
+  el('v-llm-calls').textContent = (m.claude_calls || 0) + ' / ' + (m.claude_errors || 0);
+  el('v-llm-parse').textContent = (m.llm_parse_ok || 0) + ' / ' + (m.llm_parse_fail || 0);
+  el('v-cost').textContent = '$' + (m.llm_session_cost || 0).toFixed(4);
+
+  if (m.claude_calls > 0) setDot('d-llm', m.claude_errors > 0 ? 'warn' : 'ok');
+  if (m.cb_state === 'open') setDot('d-llm', 'err');
+
+  // Circuit breaker
+  const cb = m.cb_state || 'closed';
+  el('v-cb-state').textContent = cb;
+  el('v-cb-state').className = 'm-val' + (cb === 'closed' ? ' good' : cb === 'open' ? ' bad' : ' warn');
+  el('v-cb-failures').textContent = m.cb_failures || 0;
+
+  // Tokens
+  el('v-tok-in').textContent = (m.llm_input_tokens || 0).toLocaleString();
+  el('v-tok-out').textContent = (m.llm_output_tokens || 0).toLocaleString();
+
+  // Graph
+  el('v-nodes').textContent = m.active_nodes || 0;
+  el('v-churn').textContent = '+' + (m.nodes_added_per_min || 0) + ' / -' + (m.nodes_removed_per_min || 0);
+
+  // System
+  el('v-ws-clients').textContent = m.ws_clients || 0;
+  el('v-ws-reconnects').textContent = m.ws_reconnects || 0;
+  el('v-queue').textContent = m.transcript_queue_size || 0;
+  el('v-fps').textContent = m.frontend_fps ? Math.round(m.frontend_fps) : '--';
+  el('v-rms').textContent = m.audio_rms ? m.audio_rms.toFixed(4) : '--';
+  el('v-vad').textContent = m.vad_state || '--';
+  el('v-restore').textContent = m.last_restore_ms ? m.last_restore_ms.toFixed(0) + 'ms' : '--';
+
+  // Last text
+  if (m.stt_last_text) el('v-last-text').textContent = m.stt_last_text;
+  if (m.claude_last_error) {
+    el('v-last-error').textContent = m.claude_last_error;
+    el('v-last-error').style.display = '';
+  }
+
+  // Activity log
+  if (m.activity_log) renderActivityLog(m.activity_log);
+}
+
+function renderActivityLog(entries) {
+  const box = el('activity-log');
+  if (!entries || !entries.length) {
+    box.innerHTML = '<div style="font-size:11px;color:var(--dim);">No activity yet</div>';
+    return;
+  }
+  // Show newest first
+  const reversed = entries.slice().reverse();
+  box.innerHTML = reversed.map(e => {
+    const ago = Math.round((Date.now() / 1000 - e.timestamp));
+    let agoStr;
+    if (ago < 60) agoStr = ago + 's ago';
+    else if (ago < 3600) agoStr = Math.floor(ago / 60) + 'm ago';
+    else agoStr = Math.floor(ago / 3600) + 'h ago';
+
+    const typeClass = e.type === 'recap' ? 'recap' : e.type === 'clean' ? 'clean' : 'synthesis';
+    const statusClass = e.status || '';
+    const sid = e.session_id ? e.session_id.substring(0, 8) : '';
+    const detail = e.detail ? ` — ${e.detail}` : '';
+
+    return `<div class="act-row">
+      <span class="act-type ${typeClass}">${e.type}</span>
+      <span class="act-status ${statusClass}">${e.status}</span>
+      <span style="font-size:10px;color:var(--dim);">${sid}${detail}</span>
+      <span class="act-time">${agoStr}</span>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════
+//  TRANSCRIPT FEED
+// ════════════════════════════════════════════
+function appendTranscript(text, isPartial) {
+  const box = el('t-text');
+  if (isPartial) {
+    let p = box.querySelector('.t-partial');
+    if (!p) { p = document.createElement('span'); p.className = 't-partial'; box.appendChild(p); }
+    p.textContent = text + ' ';
+  } else {
+    const partial = box.querySelector('.t-partial');
+    if (partial) partial.remove();
+    box.querySelectorAll('.t-chunk:not(.faded)').forEach(c => c.classList.add('faded'));
+    const s = document.createElement('span');
+    s.className = 't-chunk';
+    s.textContent = text + ' ';
+    box.appendChild(s);
+  }
+  el('transcript-feed').scrollTop = el('transcript-feed').scrollHeight;
+}
+
+// ════════════════════════════════════════════
+//  GRAPH MIRROR
+// ════════════════════════════════════════════
+function gmColor(group) {
+  if (!gmCmap[group]) gmCmap[group] = COLORS[gmCi++ % COLORS.length];
+  return gmCmap[group];
+}
+
+function initGraphMirror() {
+  const wrap = el('graph-mirror');
+  gmW = wrap.clientWidth || 400;
+  gmH = wrap.clientHeight || 300;
+
+  gmSvg = d3.select('#gm-svg').attr('width', gmW).attr('height', gmH);
+
+  const defs = gmSvg.append('defs');
+  const glow = defs.append('filter').attr('id','gm-glow')
+    .attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+  glow.append('feGaussianBlur').attr('stdDeviation','3').attr('result','b');
+  const fm = glow.append('feMerge');
+  fm.append('feMergeNode').attr('in','b');
+  fm.append('feMergeNode').attr('in','SourceGraphic');
+
+  gmGEdge = gmSvg.append('g');
+  gmGNode = gmSvg.append('g');
+
+  gmSim = d3.forceSimulation()
+    .force('link', d3.forceLink().id(d => d.id).distance(80).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-200).distanceMax(250))
+    .force('center', d3.forceCenter(gmW / 2, gmH / 2).strength(0.05))
+    .force('collide', d3.forceCollide().radius(30).strength(0.8))
+    .force('x', d3.forceX(gmW / 2).strength(0.02))
+    .force('y', d3.forceY(gmH / 2).strength(0.02))
+    .alphaDecay(0.03).velocityDecay(0.4)
+    .on('tick', () => {
+      gmGEdge.selectAll('.gm-e').attr('d', d => {
+        if (!d.source.x) return '';
+        const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
+        const dr = Math.sqrt(dx*dx + dy*dy) * 1.5;
+        return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+      });
+      gmGNode.selectAll('.gm-n').attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+
+  new ResizeObserver(() => {
+    gmW = wrap.clientWidth || 400;
+    gmH = wrap.clientHeight || 300;
+    gmSvg.attr('width', gmW).attr('height', gmH);
+    gmSim.force('center', d3.forceCenter(gmW / 2, gmH / 2));
+    gmSim.force('x', d3.forceX(gmW / 2).strength(0.02));
+    gmSim.force('y', d3.forceY(gmH / 2).strength(0.02));
+    if (gmNodes.length) gmSim.alpha(0.1).restart();
+  }).observe(wrap);
+}
+
+function applyGraphMirror(g) {
+  const prev = new Set(gmNodes.map(n => n.id));
+  const nids = new Set(g.nodes.map(n => n.id));
+
+  gmNodes = g.nodes.map(n => {
+    const o = gmNodes.find(x => x.id === n.id);
+    return { ...n,
+      x: o ? o.x : gmW/2 + (Math.random()-0.5)*100,
+      y: o ? o.y : gmH/2 + (Math.random()-0.5)*100,
+      vx: o ? o.vx : 0, vy: o ? o.vy : 0,
+      color: gmColor(n.group),
+    };
+  });
+
+  gmEdges = g.edges.filter(e => {
+    const s = e.source?.id || e.source, t = e.target?.id || e.target;
+    return nids.has(s) && nids.has(t);
+  }).map(e => ({ source: e.source?.id || e.source, target: e.target?.id || e.target, label: e.label || '' }));
+
+  // Render
+  const eData = gmGEdge.selectAll('.gm-e').data(gmEdges, d => d.source + '->' + d.target);
+  eData.exit().transition().duration(300).style('opacity', 0).remove();
+  eData.enter().append('path').attr('class', 'gm-e gm-edge').style('opacity', 0)
+    .transition().duration(500).style('opacity', 1);
+
+  const nData = gmGNode.selectAll('.gm-n').data(gmNodes, d => d.id);
+  nData.exit().transition().duration(300).style('opacity', 0).remove();
+  const nEnter = nData.enter().append('g').attr('class', 'gm-n').style('opacity', 0);
+  nEnter.append('circle').attr('class', 'gm-node-outer').attr('r', 14);
+  nEnter.append('circle').attr('class', 'gm-node-inner').attr('r', 11);
+  nEnter.append('circle').attr('class', 'gm-node-dot').attr('r', 2).attr('filter', 'url(#gm-glow)');
+  nEnter.append('text').attr('class', 'gm-label').attr('dy', 24);
+  nEnter.transition().duration(500).style('opacity', 1);
+
+  const merged = nEnter.merge(nData);
+  merged.select('.gm-node-outer').attr('stroke', d => d.color);
+  merged.select('.gm-node-inner').attr('fill', d => d.color);
+  merged.select('.gm-node-dot').attr('fill', d => d.color);
+  merged.select('.gm-label').text(d => d.label);
+
+  gmSim.nodes(gmNodes);
+  gmSim.force('link').links(gmEdges);
+  gmSim.alpha(0.4).restart();
+}
+
+// ════════════════════════════════════════════
+//  STT BACKEND HEALTH
+// ════════════════════════════════════════════
+async function loadBackendHealth() {
+  try {
+    const resp = await fetch('/v1/stt/backends');
+    const data = await resp.json();
+    const map = { remote: 'stt-remote', parakeet: 'stt-parakeet', canary: 'stt-canary' };
+    for (const [key, b] of Object.entries(data.backends)) {
+      const dotId = 'd-' + (map[key] || key);
+      const noteId = 'n-' + (map[key] || key);
+      const dot = el(dotId);
+      if (dot) dot.className = 's-dot' + (b.available ? ' ok' : '');
+      const note = el(noteId);
+      if (note) note.textContent = b.available ? 'online' : 'offline';
+    }
+    // Active indicator
+    const active = data.active?.backend;
+    if (active) el('v-stt-backend').textContent = active;
+  } catch (e) {}
+}
+
+// ════════════════════════════════════════════
+//  SESSION LIST (TODAY)
+// ════════════════════════════════════════════
+async function loadTodaySessions() {
+  try {
+    const resp = await fetch('/v1/sessions');
+    const sessions = await resp.json();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTs = today.getTime() / 1000;
+
+    const todaySessions = sessions.filter(s => s.created_at >= todayTs);
+    const list = el('session-list');
+    if (!todaySessions.length) {
+      list.innerHTML = '<div style="font-size:11px;color:var(--dim);">No sessions today</div>';
+      return;
+    }
+    list.innerHTML = todaySessions.map(s => {
+      const dur = s.ended_at ? fmtDuration(s.ended_at - s.created_at) : 'active';
+      return `<div class="session-row">
+        <span class="s-topic">${s.topic || 'Untitled'}</span>
+        <span class="s-meta">${s.segment_count || 0} seg</span>
+        <span class="s-meta">${dur}</span>
+      </div>`;
+    }).join('');
+  } catch (e) {}
+}
+
+// ════════════════════════════════════════════
+//  SESSION TIMER
+// ════════════════════════════════════════════
+setInterval(() => {
+  if (sessionStart) {
+    el('h-duration').textContent = fmtDuration((Date.now() - sessionStart) / 1000);
+  }
+}, 1000);
+
+// ════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════
+initGraphMirror();
+connect();
+loadBackendHealth();
+loadTodaySessions();
+// Refresh health and sessions periodically
+setInterval(loadBackendHealth, 30000);
+setInterval(loadTodaySessions, 30000);
+</script>
+</body>
+</html>

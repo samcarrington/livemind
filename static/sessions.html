@@ -1,0 +1,2594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveMind — Sessions</title>
+<link rel="icon" type="image/svg+xml" href="/livemind-favicon.svg">
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg: #080814;
+  --panel: #0c0d18;
+  --card: rgba(255,255,255,0.04);
+  --bdr: rgba(255,255,255,0.08);
+  --txt: #d4d6e0;
+  --dim: #7a7d94;
+  --bright: #f2f2f6;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --rose: #fb7185;
+  --purple: #a78bfa;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 32px;
+  min-height: 100vh;
+}
+
+/* ─── Nav bar ─── */
+.admin-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bdr);
+}
+.nav-brand {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--green);
+}
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.nav-tab {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-decoration: none;
+  padding: 7px 16px;
+  border: 1px solid var(--bdr);
+  border-radius: 100px;
+  transition: all .2s;
+}
+.nav-tab:hover { border-color: var(--green); color: var(--green); }
+.nav-tab.active { border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.06); }
+
+/* ─── Page header ─── */
+h1 {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  font-size: 28px;
+  color: var(--bright);
+  margin-bottom: 24px;
+}
+
+/* ─── Session list ─── */
+.session-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.session-table th {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bdr);
+}
+.session-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--bdr);
+  font-size: 14px;
+  vertical-align: middle;
+}
+.session-table tr.clickable {
+  cursor: pointer;
+  transition: background .15s;
+}
+.session-table tr.clickable:hover {
+  background: var(--card);
+}
+.session-topic {
+  color: var(--bright);
+  font-weight: 500;
+}
+.session-id-cell {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--dim);
+}
+.session-date {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+.badge {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 100px;
+  border: 1px solid;
+}
+.badge-recap { border-color: var(--green); color: var(--green); }
+.badge-none { border-color: var(--bdr); color: var(--dim); }
+.badge-active { border-color: var(--amber); color: var(--amber); }
+.badge-replay { border-color: var(--cyan, #5af); color: var(--cyan, #5af); }
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--dim);
+  font-size: 14px;
+}
+
+/* ─── Detail view ─── */
+#detail-view { display: none; }
+
+.detail-back {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--dim);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color .2s;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+.detail-back:hover { color: var(--green); }
+
+.detail-header {
+  margin-bottom: 24px;
+}
+.detail-header h2 {
+  font-weight: 500;
+  font-size: 24px;
+  color: var(--bright);
+  margin-bottom: 8px;
+}
+.detail-meta {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.detail-meta .meta-item {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--dim);
+}
+.detail-meta .meta-item span {
+  color: var(--txt);
+}
+
+/* ─── Tabs ─── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--bdr);
+}
+.tab-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dim);
+  background: none;
+  border: none;
+  padding: 12px 20px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .2s;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--txt); }
+.tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ─── Recap tab ─── */
+.recap-section {
+  margin-bottom: 32px;
+}
+.recap-section h3 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 12px;
+}
+.recap-section p {
+  margin-bottom: 12px;
+  line-height: 1.7;
+  font-size: 14px;
+}
+.recap-section ul {
+  margin-left: 20px;
+  margin-bottom: 8px;
+}
+.recap-section li {
+  margin-bottom: 8px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+/* ─── Recap v2 ─── */
+.recap-pitch {
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--bright);
+  margin-bottom: 32px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--bdr);
+}
+.recap-retain {
+  margin-bottom: 32px;
+}
+.recap-retain ol {
+  margin-left: 20px;
+  counter-reset: none;
+}
+.recap-retain li {
+  margin-bottom: 10px;
+  line-height: 1.6;
+  font-size: 15px;
+  color: var(--txt);
+}
+.recap-conn-card {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.recap-conn-topics {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.recap-conn-chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  background: rgba(52,211,153,0.08);
+  border: 1px solid rgba(52,211,153,0.2);
+  border-radius: 4px;
+  color: var(--green);
+}
+.recap-conn-arrow {
+  color: var(--dim);
+  font-size: 10px;
+}
+.recap-conn-insight {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--txt);
+}
+.recap-empty-note {
+  font-size: 12px;
+  color: var(--dim);
+  font-style: italic;
+}
+.recap-details {
+  margin-bottom: 16px;
+}
+.recap-details summary {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--green);
+  cursor: pointer;
+  padding: 10px 0;
+  list-style: none;
+}
+.recap-details summary::before {
+  content: '▸ ';
+}
+.recap-details[open] summary::before {
+  content: '▾ ';
+}
+.recap-details .recap-section {
+  margin-top: 12px;
+}
+.recap-empty {
+  text-align: center;
+  padding: 60px 20px;
+}
+.recap-empty p {
+  color: var(--dim);
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* ─── Buttons ─── */
+.btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all .2s;
+  border: 1px solid;
+}
+.btn-primary {
+  background: rgba(52,211,153,0.08);
+  border-color: var(--green);
+  color: var(--green);
+}
+.btn-primary:hover { background: rgba(52,211,153,0.15); }
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-ghost {
+  background: none;
+  border-color: var(--bdr);
+  color: var(--dim);
+}
+.btn-ghost:hover { border-color: var(--txt); color: var(--txt); }
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bdr);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Transcript tab ─── */
+.transcript-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.toggle-raw {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  cursor: pointer;
+}
+.toggle-raw input {
+  accent-color: var(--green);
+}
+.seg-changed {
+  border-left: 2px solid var(--green);
+  padding-left: 10px;
+  animation: seg-highlight 2s ease;
+}
+@keyframes seg-highlight {
+  0% { background: rgba(52,211,153,0.1); }
+  100% { background: transparent; }
+}
+.seg-original {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 4px;
+  font-style: italic;
+}
+.transcript-box {
+  max-height: 70vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dim) transparent;
+  padding-right: 8px;
+}
+.transcript-seg {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+.transcript-ts {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  flex-shrink: 0;
+  width: 60px;
+  padding-top: 2px;
+}
+.transcript-text {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.seg-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+}
+.seg-meta span {
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.05);
+  color: var(--dim);
+}
+.seg-lang {
+  text-transform: uppercase;
+}
+
+/* ─── Mind Map tab ─── */
+.map-wrap {
+  width: 100%;
+  height: 500px;
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
+  position: relative;
+}
+.map-wrap svg { width: 100%; height: 100%; display: block; }
+.map-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+/* D3 node styles */
+.n-group { cursor: default; }
+.n-outer { fill: none; stroke-width: 1.5; opacity: 0.5; }
+.n-inner { opacity: 0.15; }
+.n-dot { opacity: 0.9; }
+.n-label {
+  fill: var(--bright);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.n-cat {
+  fill: var(--dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.edge-path {
+  fill: none;
+  stroke: var(--bdr);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+.edge-text {
+  fill: var(--dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.n-group.pinned .n-outer { stroke-width: 2.5; opacity: 0.8; }
+
+/* ─── Playback controls ─── */
+.pb-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--bdr);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+.pb-play {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--bdr);
+  background: none;
+  color: var(--dim);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.pb-play:hover { border-color: var(--green); color: var(--green); }
+.pb-play.playing { border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.08); }
+.pb-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--txt);
+  flex-shrink: 0;
+  min-width: 100px;
+}
+.pb-track {
+  flex: 1;
+  height: 20px;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.pb-track-bg {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--bdr);
+  transform: translateY(-50%);
+  border-radius: 1px;
+}
+.pb-track-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 2px;
+  background: var(--green);
+  transform: translateY(-50%);
+  border-radius: 1px;
+  width: 0%;
+}
+.pb-track-handle {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  transform: translate(-50%, -50%);
+  left: 0%;
+  transition: box-shadow .2s;
+}
+.pb-track:hover .pb-track-handle { box-shadow: 0 0 8px rgba(52,211,153,0.4); }
+.pb-frame {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+.pb-speed {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--bdr);
+  border-radius: 100px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.pb-speed:hover { border-color: var(--green); color: var(--green); }
+
+.map-play-btn {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+.map-export-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+.map-export-bar .btn {
+  font-size: 11px;
+  padding: 5px 12px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.map-export-bar .btn:hover { opacity: 1; }
+.map-export-bar .btn.exporting {
+  pointer-events: none;
+  opacity: 0.4;
+}
+.map-wrap.playback { border-radius: 8px 8px 0 0; }
+
+#tab-mindmap.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  display: block;
+  padding: 0;
+}
+#tab-mindmap.fullscreen .map-wrap {
+  height: calc(100vh - 50px);
+  border-radius: 0;
+}
+#tab-mindmap.fullscreen .pb-controls {
+  border-radius: 0;
+}
+
+/* ─── Export bar ─── */
+.export-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bdr);
+}
+
+/* ─── Toast ─── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 10px 18px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--green);
+  color: var(--green);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all .3s;
+  pointer-events: none;
+  z-index: 100;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { border-color: var(--rose); color: var(--rose); }
+
+/* ─── Multi-select + Synthesis ─── */
+.sel-cb {
+  width: 16px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+.sel-cb-head {
+  width: 16px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+#synth-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--panel);
+  border-top: 1px solid var(--green);
+  padding: 12px 40px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+#synth-bar.hidden { display: none; }
+#synth-bar .synth-count {
+  color: var(--green);
+  font-weight: 500;
+}
+#synth-bar .btn {
+  padding: 8px 20px;
+}
+
+/* Synthesis cards in list view */
+.synth-section {
+  margin-bottom: 32px;
+}
+.synth-section h2 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 12px;
+}
+.synth-card {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.synth-card:hover {
+  border-color: rgba(52,211,153,0.3);
+}
+.synth-card-pitch {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--txt);
+  margin-bottom: 8px;
+}
+.synth-card-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.synth-card-actions {
+  margin-left: auto;
+}
+
+/* Synthesis detail (expanded) */
+.synth-detail {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.synth-detail .recap-pitch {
+  border-bottom-color: var(--bdr);
+}
+.synth-conn-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+.synth-conn-sessions {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+
+<nav class="admin-nav">
+  <img src="/livemind-logo-clean.svg" alt="LiveMind" style="height:28px;opacity:0.85;">
+  <div class="nav-tabs">
+    <a href="/monitor" class="nav-tab">Monitor</a>
+    <a href="/admin" class="nav-tab">Admin</a>
+    <a href="/sessions" class="nav-tab" id="nav-sessions">Sessions</a>
+    <a href="/sessions/archive" class="nav-tab" id="nav-archive">Archive</a>
+    <a href="/doc" class="nav-tab">Guide</a>
+  </div>
+</nav>
+
+<!-- ═══ List View ═══ -->
+<div id="list-view">
+  <h1 id="page-title">Sessions</h1>
+
+  <!-- Synthesis section -->
+  <div id="synth-section" class="synth-section" style="display:none;"></div>
+
+  <table class="session-table">
+    <thead>
+      <tr>
+        <th style="width:30px;"><input type="checkbox" class="sel-cb-head" id="sel-all" onclick="toggleSelectAll(this)"></th>
+        <th>Topic</th>
+        <th>Date</th>
+        <th>Duration</th>
+        <th>Segments</th>
+        <th>Recap</th>
+        <th>ID</th>
+      </tr>
+    </thead>
+    <tbody id="session-list"></tbody>
+  </table>
+  <div id="list-empty" class="empty-state" style="display:none;">No sessions found.</div>
+</div>
+
+<!-- Floating synthesis action bar -->
+<div id="synth-bar" class="hidden">
+  <span class="synth-count" id="synth-count">0 selected</span>
+  <button class="btn btn-primary" id="btn-synthesize" onclick="generateSynthesis()">Synthesize</button>
+  <button class="btn" id="btn-archive" onclick="archiveSelected()">Archive</button>
+  <button class="btn" style="border-color:rgba(251,113,133,0.3);color:var(--rose);" id="btn-delete" onclick="deleteSelected()">Delete</button>
+  <button class="btn" onclick="clearSelection()">Clear</button>
+  <span id="synth-warning" style="color:var(--amber);font-size:10px;"></span>
+</div>
+
+<!-- ═══ Detail View ═══ -->
+<div id="detail-view">
+  <a class="detail-back" onclick="showList()">&larr; All Sessions</a>
+  <div class="detail-header">
+    <h2 id="detail-title"></h2>
+    <div class="detail-meta">
+      <div class="meta-item">Date: <span id="detail-date"></span></div>
+      <div class="meta-item">Duration: <span id="detail-duration"></span></div>
+      <div class="meta-item">Segments: <span id="detail-segments"></span></div>
+      <div class="meta-item">ID: <span id="detail-id"></span></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="recap">Recap</button>
+    <button class="tab-btn" data-tab="transcript">Transcript</button>
+    <button class="tab-btn" data-tab="mindmap">Graph</button>
+  </div>
+
+  <!-- Recap Tab -->
+  <div id="tab-recap" class="tab-panel active">
+    <div class="transcript-toolbar" id="recap-toolbar" style="display:none;">
+      <button class="btn btn-ghost" onclick="generateRecap()" id="btn-regenerate">Regenerate Recap</button>
+      <button class="btn btn-ghost" onclick="exportPdf()">Export PDF</button>
+      <button class="btn btn-ghost" onclick="copyMarkdown()">Copy Markdown</button>
+      <button class="btn btn-ghost" onclick="downloadMarkdown()">Download .md</button>
+    </div>
+    <div id="recap-content"></div>
+    <div id="recap-empty" class="recap-empty" style="display:none;">
+      <p>No recap generated yet for this session.</p>
+      <button class="btn btn-primary" id="btn-generate" onclick="generateRecap()">Generate Recap</button>
+    </div>
+  </div>
+
+  <!-- Transcript Tab -->
+  <div id="tab-transcript" class="tab-panel">
+    <div class="transcript-toolbar" id="transcript-toolbar">
+      <button class="btn btn-ghost" id="btn-clean-transcript" onclick="cleanTranscript()">Clean Transcript</button>
+      <button class="btn btn-ghost" onclick="copyTranscriptMarkdown()">Copy Markdown</button>
+      <button class="btn btn-ghost" onclick="downloadTranscriptMarkdown()">Download .md</button>
+      <button class="btn btn-ghost" onclick="exportTranscriptPdf()">Export PDF</button>
+      <label class="toggle-raw" id="toggle-raw-wrap" style="display:none;">
+        <input type="checkbox" id="toggle-raw" onchange="renderTranscript()">
+        <span>Show raw STT</span>
+      </label>
+    </div>
+    <div class="transcript-box" id="transcript-box"></div>
+  </div>
+
+  <!-- Mind Map Tab -->
+  <div id="tab-mindmap" class="tab-panel">
+    <div class="map-wrap" id="map-wrap"></div>
+    <div class="pb-controls" id="pb-controls" style="display:none;">
+      <button class="pb-play" id="pb-play" onclick="togglePlayback()" title="Play/Pause">&#9654;</button>
+      <span class="pb-time" id="pb-time">00:00 / 00:00</span>
+      <div class="pb-track" id="pb-track">
+        <div class="pb-track-bg"></div>
+        <div class="pb-track-fill" id="pb-fill"></div>
+        <div class="pb-track-handle" id="pb-handle"></div>
+      </div>
+      <span class="pb-frame" id="pb-frame">0 / 0</span>
+      <button class="pb-speed" id="pb-speed" onclick="cycleSpeed()" title="Playback speed">5x</button>
+      <button class="pb-speed" onclick="toggleGraphFullscreen()" title="Fullscreen">&#x26F6;</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ Synthesis Detail View ═══ -->
+<div id="synth-view" style="display:none;">
+  <a class="detail-back" onclick="closeSynthView()">&larr; All Sessions</a>
+  <div class="detail-header">
+    <h2 id="synth-title">Cross-Session Synthesis</h2>
+    <div class="detail-meta" id="synth-meta"></div>
+  </div>
+  <div id="synth-content"></div>
+
+  <div class="export-bar">
+    <button class="btn btn-ghost" onclick="deleteSynthesisFromDetail()">Delete Synthesis</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── State ───
+let sessions = [];
+let current = null;  // { session, transcript, snapshot, recap }
+const isArchivePage = location.pathname.includes('/archive');
+const COLORS = ['#34d399','#a78bfa','#fb7185','#fbbf24','#60a5fa','#22d3ee','#fb923c','#f0abfc','#2dd4bf','#a3e635'];
+const cmap = {};
+let ci = 0;
+
+// ─── Init ───
+// Set active nav tab and page title
+document.getElementById(isArchivePage ? 'nav-archive' : 'nav-sessions').classList.add('active');
+document.getElementById('page-title').textContent = isArchivePage ? 'Archived Sessions' : 'Sessions';
+
+// Adjust action bar for archive page
+if (isArchivePage) {
+  document.getElementById('btn-synthesize').style.display = 'none';
+  document.getElementById('btn-archive').textContent = 'Unarchive';
+  document.getElementById('btn-archive').onclick = unarchiveSelected;
+}
+
+loadSessions();
+
+async function loadSessions() {
+  try {
+    const resp = await fetch('/v1/sessions' + (isArchivePage ? '?archived=true' : ''));
+    sessions = await resp.json();
+    renderList();
+  } catch (e) {
+    toast('Failed to load sessions', true);
+  }
+}
+
+function renderList() {
+  const tbody = document.getElementById('session-list');
+  const empty = document.getElementById('list-empty');
+  if (!sessions.length) { empty.style.display = ''; tbody.innerHTML = ''; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = sessions.map(s => {
+    const topic = s.topic || 'Untitled';
+    const replayBadge = s.source === 'replay' ? ' <span class="badge badge-replay">replay</span>' : '';
+    const date = fmtDate(s.created_at);
+    const dur = s.ended_at ? fmtDuration(s.ended_at - s.created_at) : '<span class="badge badge-active">active</span>';
+    const segs = s.segment_count || 0;
+    const recap = s.has_recap ? '<span class="badge badge-recap">recap</span>' : '<span class="badge badge-none">none</span>';
+    const checked = selectedSessions.has(s.id) ? 'checked' : '';
+    return `<tr class="clickable">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="sel-cb" data-id="${s.id}" data-has-recap="${s.has_recap ? 1 : 0}" ${checked} onchange="onSessionSelect()"></td>
+      <td class="session-topic" onclick="openSession('${s.id}')">${esc(topic)}${replayBadge}</td>
+      <td class="session-date" onclick="openSession('${s.id}')">${date}</td>
+      <td onclick="openSession('${s.id}')">${dur}</td>
+      <td onclick="openSession('${s.id}')">${segs}</td>
+      <td onclick="openSession('${s.id}')">${recap}</td>
+      <td class="session-id-cell" onclick="openSession('${s.id}')">${s.id}</td>
+    </tr>`;
+  }).join('');
+  loadSynthesisRecaps();
+}
+
+// ─── Detail ───
+async function openSession(id) {
+  try {
+    const resp = await fetch(`/v1/sessions/${id}`);
+    if (!resp.ok) {
+      toast(`Session ${id} not found`, true);
+      return;
+    }
+    const data = await resp.json();
+    if (!data || !data.session) {
+      toast(`Session ${id} has no metadata`, true);
+      return;
+    }
+    current = data;
+    renderDetail();
+    document.getElementById('list-view').style.display = 'none';
+    document.getElementById('synth-view').style.display = 'none';
+    document.getElementById('detail-view').style.display = 'block';
+  } catch (e) {
+    toast('Failed to load session', true);
+  }
+}
+
+function showList() {
+  cleanupPlayback();
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('synth-view').style.display = 'none';
+  document.getElementById('list-view').style.display = 'block';
+  current = null;
+  currentSynthId = null;
+}
+
+function renderDetail() {
+  const s = current.session;
+  document.getElementById('detail-title').textContent = s.topic || 'Untitled Session';
+  document.getElementById('detail-date').textContent = fmtDate(s.created_at);
+  document.getElementById('detail-duration').textContent = s.ended_at ? fmtDuration(s.ended_at - s.created_at) : 'In progress';
+  document.getElementById('detail-segments').textContent = s.segment_count || 0;
+  document.getElementById('detail-id').textContent = s.id;
+
+  renderRecap();
+  renderTranscript();
+  // Reset to recap tab
+  switchTab('recap');
+}
+
+// ─── Tabs ───
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(tab) {
+  if (tab !== 'mindmap') cleanupPlayback();
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  if (tab === 'mindmap') renderMindMap();
+}
+
+// ─── Recap ───
+function renderRecap() {
+  const container = document.getElementById('recap-content');
+  const empty = document.getElementById('recap-empty');
+  const btn = document.getElementById('btn-generate');
+
+  if (!current.recap) {
+    container.innerHTML = '';
+    empty.style.display = '';
+    document.getElementById('recap-toolbar').style.display = 'none';
+    btn.textContent = 'Generate Recap';
+    btn.disabled = false;
+    return;
+  }
+
+  empty.style.display = 'none';
+  document.getElementById('recap-toolbar').style.display = '';
+  const r = current.recap.recap;
+
+  // Check for error state
+  if (r.error) {
+    container.innerHTML = `<div class="recap-empty"><p style="color:var(--rose);">Recap generation failed: ${esc(r.error)}</p>
+      <button class="btn btn-ghost" onclick="generateRecap()">Retry</button></div>`;
+    return;
+  }
+
+  // Branch on schema version
+  const html = (r.schema_version === 2) ? renderRecapV2(r) : renderRecapV1(r);
+  container.innerHTML = html;
+}
+
+function renderRecapV1(r) {
+  let html = '';
+  if (r.summary) {
+    html += `<div class="recap-section"><h3>Summary</h3>`;
+    r.summary.split('\n\n').forEach(p => { html += `<p>${esc(p)}</p>`; });
+    html += `</div>`;
+  }
+  if (r.key_topics && r.key_topics.length) {
+    html += `<div class="recap-section"><h3>Key Topics</h3><ul>`;
+    r.key_topics.forEach(t => { html += `<li>${esc(t)}</li>`; });
+    html += `</ul></div>`;
+  }
+  if (r.decisions && r.decisions.length) {
+    html += `<div class="recap-section"><h3>Decisions</h3><ul>`;
+    r.decisions.forEach(d => { html += `<li>${esc(d)}</li>`; });
+    html += `</ul></div>`;
+  }
+  if (r.action_items && r.action_items.length) {
+    html += `<div class="recap-section"><h3>Action Items</h3><ul>`;
+    r.action_items.forEach(a => { html += `<li>${esc(a)}</li>`; });
+    html += `</ul></div>`;
+  }
+  if (r.open_questions && r.open_questions.length) {
+    html += `<div class="recap-section"><h3>Open Questions</h3><ul>`;
+    r.open_questions.forEach(q => { html += `<li>${esc(q)}</li>`; });
+    html += `</ul></div>`;
+  }
+  return html;
+}
+
+function renderRecapV2(r) {
+  let html = '';
+
+  // Elevator pitch — large, top
+  if (r.elevator_pitch) {
+    html += `<div class="recap-pitch">${esc(r.elevator_pitch)}</div>`;
+  }
+
+  // Three things to retain
+  if (r.retain && r.retain.length) {
+    html += `<div class="recap-retain"><div class="recap-section"><h3>Three Things to Retain</h3><ol>`;
+    r.retain.forEach(item => { html += `<li>${esc(item)}</li>`; });
+    html += `</ol></div></div>`;
+  }
+
+  // Non-obvious connections
+  html += `<div class="recap-section"><h3>Non-Obvious Connections</h3>`;
+  if (r.non_obvious_connections && r.non_obvious_connections.length) {
+    r.non_obvious_connections.forEach(conn => {
+      const topics = (conn.topics || []).map(t => `<span class="recap-conn-chip">${esc(t)}</span>`).join('<span class="recap-conn-arrow">&harr;</span>');
+      html += `<div class="recap-conn-card">
+        <div class="recap-conn-topics">${topics}</div>
+        <div class="recap-conn-insight">${esc(conn.insight || '')}</div>
+      </div>`;
+    });
+  } else {
+    html += `<p class="recap-empty-note">No non-obvious connections surfaced this session.</p>`;
+  }
+  html += `</div>`;
+
+  // Contradictions — only if non-empty
+  if (r.contradictions && r.contradictions.length) {
+    html += `<div class="recap-section"><h3>Contradictions</h3><ul>`;
+    r.contradictions.forEach(c => { html += `<li>${esc(c)}</li>`; });
+    html += `</ul></div>`;
+  }
+
+  // Summary — collapsed
+  if (r.summary) {
+    html += `<details class="recap-details"><summary>Summary</summary><div class="recap-section">`;
+    r.summary.split('\n\n').forEach(p => { html += `<p>${esc(p)}</p>`; });
+    html += `</div></details>`;
+  }
+
+  // Decisions — collapsed
+  if (r.decisions && r.decisions.length) {
+    html += `<details class="recap-details"><summary>Decisions</summary><div class="recap-section"><ul>`;
+    r.decisions.forEach(d => { html += `<li>${esc(d)}</li>`; });
+    html += `</ul></div></details>`;
+  }
+
+  // Open threads — collapsed
+  if (r.open_threads && r.open_threads.length) {
+    html += `<details class="recap-details"><summary>Open Threads</summary><div class="recap-section"><ul>`;
+    r.open_threads.forEach(t => { html += `<li>${esc(t)}</li>`; });
+    html += `</ul></div></details>`;
+  }
+
+  return html;
+}
+
+async function generateRecap() {
+  if (!current) return;
+  const btn = document.getElementById('btn-generate');
+  const container = document.getElementById('recap-content');
+  const empty = document.getElementById('recap-empty');
+
+  // Show loading state
+  const loadingHtml = `<div class="recap-empty"><p><span class="spinner"></span> Generating recap...</p></div>`;
+  if (current.recap) {
+    container.innerHTML = loadingHtml;
+  } else {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Generating...';
+  }
+
+  try {
+    const resp = await fetch(`/v1/sessions/${current.session.id}/recap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to generate recap');
+    current.recap = data;
+    renderRecap();
+    toast('Recap generated');
+    // Update list badge
+    const s = sessions.find(s => s.id === current.session.id);
+    if (s) s.has_recap = 1;
+  } catch (e) {
+    toast(e.message, true);
+    renderRecap();  // restore previous state
+  }
+}
+
+// ─── Session Selection + Synthesis ───
+const selectedSessions = new Set();
+let synthesisRecaps = [];
+
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.sel-cb').forEach(el => {
+    el.checked = cb.checked;
+  });
+  onSessionSelect();
+}
+
+function onSessionSelect() {
+  selectedSessions.clear();
+  let missingRecaps = 0;
+  document.querySelectorAll('.sel-cb:checked').forEach(el => {
+    selectedSessions.add(el.dataset.id);
+    if (el.dataset.hasRecap !== '1') missingRecaps++;
+  });
+
+  const bar = document.getElementById('synth-bar');
+  // Show bar: 1+ for archive/unarchive, 2+ for synthesize on active page
+  const minForBar = isArchivePage ? 1 : 1;
+  if (selectedSessions.size >= minForBar) {
+    bar.classList.remove('hidden');
+    document.getElementById('synth-count').textContent = selectedSessions.size + ' selected';
+    const btn = document.getElementById('btn-synthesize');
+    const warn = document.getElementById('synth-warning');
+    if (!isArchivePage && missingRecaps > 0 && selectedSessions.size >= 2) {
+      btn.disabled = true;
+      btn.style.opacity = '0.4';
+      warn.textContent = missingRecaps + ' session(s) missing recaps — generate individual recaps first';
+    } else if (!isArchivePage) {
+      btn.disabled = selectedSessions.size < 2;
+      btn.style.opacity = selectedSessions.size < 2 ? '0.4' : '';
+      warn.textContent = selectedSessions.size < 2 ? 'Select 2+ sessions to synthesize' : '';
+    }
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+function clearSelection() {
+  selectedSessions.clear();
+  document.querySelectorAll('.sel-cb').forEach(el => { el.checked = false; });
+  document.getElementById('sel-all').checked = false;
+  document.getElementById('synth-bar').classList.add('hidden');
+}
+
+async function archiveSelected() {
+  const ids = Array.from(selectedSessions);
+  if (!ids.length) return;
+  try {
+    const resp = await fetch('/v1/sessions/archive', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({session_ids: ids}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Archive failed');
+    toast(`${ids.length} session(s) archived`);
+    clearSelection();
+    loadSessions();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function unarchiveSelected() {
+  const ids = Array.from(selectedSessions);
+  if (!ids.length) return;
+  try {
+    const resp = await fetch('/v1/sessions/unarchive', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({session_ids: ids}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Unarchive failed');
+    toast(`${ids.length} session(s) restored`);
+    clearSelection();
+    loadSessions();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function deleteSelected() {
+  const ids = Array.from(selectedSessions);
+  if (!ids.length) return;
+  const word = ids.length === 1 ? '1 session' : `${ids.length} sessions`;
+  if (!confirm(`Permanently delete ${word}? This cannot be undone.`)) return;
+  try {
+    const resp = await fetch('/v1/sessions', {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({session_ids: ids}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Delete failed');
+    toast(`${ids.length} session(s) deleted`);
+    clearSelection();
+    loadSessions();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+let currentSynthId = null;
+
+async function generateSynthesis() {
+  const ids = Array.from(selectedSessions);
+  const btn = document.getElementById('btn-synthesize');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Synthesizing...';
+
+  try {
+    const resp = await fetch('/v1/sessions/synthesis', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({session_ids: ids}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Synthesis failed');
+    toast('Cross-session synthesis generated');
+    clearSelection();
+    // Navigate directly to the result
+    openSynthView(data);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Synthesize';
+  }
+}
+
+async function loadSynthesisRecaps() {
+  try {
+    const resp = await fetch('/v1/sessions/synthesis');
+    synthesisRecaps = await resp.json();
+    renderSynthesisSection();
+  } catch (e) {
+    console.warn('Failed to load synthesis recaps:', e);
+  }
+}
+
+function renderSynthesisSection() {
+  const section = document.getElementById('synth-section');
+  if (!synthesisRecaps.length) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  let html = '<h2>Cross-Session Synthesis</h2>';
+  synthesisRecaps.forEach(sr => {
+    const r = sr.recap;
+    const pitch = r.elevator_pitch || (r.synthesis ? r.synthesis.substring(0, 120) + '...' : 'No pitch');
+    const count = sr.session_ids.length;
+    const date = fmtDate(sr.created_at);
+    html += `<div class="synth-card" onclick="openSynthById(${sr.id})">
+      <div class="synth-card-pitch">${esc(pitch)}</div>
+      <div class="synth-card-meta">
+        <span>${count} sessions</span>
+        <span>${date}</span>
+        <span>${sr.model || ''}</span>
+      </div>
+    </div>`;
+  });
+  section.innerHTML = html;
+}
+
+async function openSynthById(id) {
+  // Load from API if not already in memory
+  let sr = synthesisRecaps.find(s => s.id === id);
+  if (!sr) {
+    try {
+      const resp = await fetch('/v1/sessions/synthesis/' + id);
+      sr = await resp.json();
+    } catch (e) {
+      toast('Failed to load synthesis', true);
+      return;
+    }
+  }
+  openSynthView(sr);
+}
+
+function openSynthView(sr) {
+  currentSynthId = sr.id;
+  const r = sr.recap;
+
+  // Build session lookup
+  const sessionMap = {};
+  sessions.forEach(s => { sessionMap[s.id] = s.topic || s.id; });
+
+  // Meta
+  const count = sr.session_ids.length;
+  const sessionNames = sr.session_ids.map(sid => sessionMap[sid] || sid).join(', ');
+  document.getElementById('synth-meta').innerHTML = `
+    <div class="meta-item">${count} sessions</div>
+    <div class="meta-item">${fmtDate(sr.created_at)}</div>
+    <div class="meta-item">${sr.model || ''}</div>
+  `;
+
+  let html = '';
+
+  // Elevator pitch
+  if (r.elevator_pitch) {
+    html += `<div class="recap-pitch">${esc(r.elevator_pitch)}</div>`;
+  }
+
+  // Cross-connections
+  html += `<div class="recap-section"><h3>Cross-Session Connections</h3>`;
+  if (r.cross_connections && r.cross_connections.length) {
+    r.cross_connections.forEach(conn => {
+      const connSessions = (conn.sessions || []).map(sid => esc(sessionMap[sid] || sid)).join(', ');
+      const topics = (conn.topics || []).map(t => `<span class="recap-conn-chip">${esc(t)}</span>`).join('<span class="recap-conn-arrow">&harr;</span>');
+      html += `<div class="synth-conn-card">
+        <div class="synth-conn-sessions">Sessions: ${connSessions}</div>
+        <div class="recap-conn-topics" style="margin-bottom:6px;">${topics}</div>
+        <div class="recap-conn-insight">${esc(conn.insight || '')}</div>
+      </div>`;
+    });
+  } else {
+    html += `<p class="recap-empty-note">No cross-session connections surfaced.</p>`;
+  }
+  html += `</div>`;
+
+  // Evolution
+  if (r.evolution && r.evolution.length) {
+    html += `<div class="recap-section"><h3>How Ideas Evolved</h3><ol>`;
+    r.evolution.forEach(item => { html += `<li>${esc(item)}</li>`; });
+    html += `</ol></div>`;
+  }
+
+  // Tensions
+  if (r.tensions && r.tensions.length) {
+    html += `<div class="recap-section"><h3>Tensions</h3><ul>`;
+    r.tensions.forEach(t => { html += `<li>${esc(t)}</li>`; });
+    html += `</ul></div>`;
+  }
+
+  // Narrative
+  if (r.synthesis) {
+    html += `<div class="recap-section"><h3>Full Narrative</h3>`;
+    r.synthesis.split('\n\n').forEach(p => { html += `<p>${esc(p)}</p>`; });
+    html += `</div>`;
+  }
+
+  // Sessions included
+  html += `<div class="recap-section"><h3>Sessions Included</h3><div>`;
+  sr.session_ids.forEach(sid => {
+    const name = sessionMap[sid] || sid;
+    html += `<span style="display:inline-block;font-size:12px;padding:4px 10px;margin:3px 4px 3px 0;background:var(--card);border:1px solid var(--bdr);border-radius:4px;cursor:pointer;" onclick="closeSynthView();openSession('${sid}')">${esc(name)}</span>`;
+  });
+  html += `</div></div>`;
+
+  document.getElementById('synth-content').innerHTML = html;
+
+  // Show synth view, hide list
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('synth-view').style.display = 'block';
+}
+
+function closeSynthView() {
+  currentSynthId = null;
+  document.getElementById('synth-view').style.display = 'none';
+  document.getElementById('list-view').style.display = 'block';
+  loadSynthesisRecaps();
+}
+
+async function deleteSynthesisFromDetail() {
+  if (!currentSynthId) return;
+  if (!confirm('Delete this synthesis?')) return;
+  try {
+    await fetch('/v1/sessions/synthesis/' + currentSynthId, {method: 'DELETE'});
+    toast('Synthesis deleted');
+    closeSynthView();
+  } catch (e) {
+    toast('Delete failed', true);
+  }
+}
+
+// ─── Transcript ───
+function renderTranscript() {
+  const box = document.getElementById('transcript-box');
+  if (!current.transcript || !current.transcript.length) {
+    box.innerHTML = '<div class="empty-state">No transcript segments.</div>';
+    return;
+  }
+
+  const hasCleaned = current.transcript.some(seg => seg.cleaned_text);
+  const showRaw = document.getElementById('toggle-raw')?.checked || false;
+
+  // Show/hide toggle and update button state
+  document.getElementById('toggle-raw-wrap').style.display = hasCleaned ? '' : 'none';
+  const cleanBtn = document.getElementById('btn-clean-transcript');
+  if (hasCleaned) {
+    cleanBtn.textContent = 'Re-clean Transcript';
+  }
+
+  const t0 = current.transcript[0].timestamp;
+  box.innerHTML = current.transcript.map(seg => {
+    const offset = seg.timestamp - t0;
+    const lang = seg.stt_language ? `<span class="seg-lang">${esc(seg.stt_language)}</span>` : '';
+    const backend = seg.stt_backend ? `<span class="seg-backend">${esc(seg.stt_backend)}</span>` : '';
+    const latency = seg.stt_latency_ms != null ? `<span class="seg-latency">${seg.stt_latency_ms}ms</span>` : '';
+    const meta = (lang || backend || latency) ? `<div class="seg-meta">${lang}${backend}${latency}</div>` : '';
+
+    // Decide which text to show
+    const displayText = (!showRaw && seg.cleaned_text) ? seg.cleaned_text : seg.text;
+    const changed = seg.cleaned_text && seg.cleaned_text !== seg.text;
+    const changedClass = (!showRaw && changed) ? ' seg-changed' : '';
+
+    // Show original below if showing cleaned and it differs
+    const originalLine = (!showRaw && changed) ? `<div class="seg-original">${esc(seg.text)}</div>` : '';
+
+    return `<div class="transcript-seg${changedClass}">
+      <div class="transcript-ts">${fmtTime(offset)}</div>
+      <div class="transcript-text">${esc(displayText)}${originalLine}${meta}</div>
+    </div>`;
+  }).join('');
+}
+
+async function cleanTranscript() {
+  if (!current) return;
+  const sid = current.session.id;
+  const btn = document.getElementById('btn-clean-transcript');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Cleaning...';
+
+  const setBtn = (label) => { btn.innerHTML = '<span class="spinner"></span> ' + label; };
+
+  try {
+    // Kick off the job (returns 202 immediately)
+    const start = await fetch(`/v1/sessions/${sid}/clean-transcript`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+    });
+    if (!start.ok && start.status !== 202) {
+      const err = await start.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to start (HTTP ${start.status})`);
+    }
+
+    // Poll status every 2s until done or error
+    let result = null;
+    while (true) {
+      await new Promise(r => setTimeout(r, 2000));
+      const s = await fetch(`/v1/sessions/${sid}/clean-transcript/status`);
+      if (!s.ok) throw new Error(`Status poll failed (HTTP ${s.status})`);
+      const js = await s.json();
+      if (js.status === 'running') {
+        const p = js.progress || {};
+        if (p.total) setBtn(`Cleaning ${p.done || 0}/${p.total}...`);
+      } else if (js.status === 'done') {
+        result = js.result || {};
+        break;
+      } else if (js.status === 'error') {
+        throw new Error(js.error || 'Cleaning job crashed');
+      } else if (js.status === 'idle') {
+        throw new Error('Cleaning job disappeared');
+      }
+    }
+
+    const failN = (result.failed_chunks || []).length;
+    const base = `Transcript cleaned: ${result.changed} of ${result.total_segments} segments updated`;
+    toast(failN ? `${base} (${failN} chunks skipped)` : base);
+
+    // Reload session data to get cleaned_text
+    const resp2 = await fetch(`/v1/sessions/${sid}`);
+    current = await resp2.json();
+    switchTab('transcript');
+    renderTranscript();
+    const firstChanged = document.querySelector('.seg-changed');
+    if (firstChanged) firstChanged.scrollIntoView({behavior: 'smooth', block: 'center'});
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Re-clean Transcript';
+  }
+}
+
+// ─── Mind Map ───
+let mapRendered = false;
+
+function renderMindMap() {
+  if (mapRendered || PB.active) return;
+  const wrap = document.getElementById('map-wrap');
+
+  if (!current.snapshot || !current.snapshot.graph) {
+    wrap.innerHTML = '<div class="map-empty">No graph snapshot available.</div>';
+    return;
+  }
+
+  const graph = current.snapshot.graph;
+  const nodesDict = graph.nodes || {};
+  const rawEdges = graph.edges || [];
+
+  const activeNodes = Object.values(nodesDict)
+    .filter(n => n.state === 'active')
+    .map(n => ({
+      id: n.id, label: n.label, group: n.group,
+      importance: n.importance || 0.5, pinned: n.pinned || false,
+      color: nodeColor(n.group),
+    }));
+
+  if (!activeNodes.length) {
+    wrap.innerHTML = '<div class="map-empty">No active nodes in final snapshot.</div>';
+    return;
+  }
+
+  const activeIds = new Set(activeNodes.map(n => n.id));
+  const edges = rawEdges
+    .filter(e => activeIds.has(e.source) && activeIds.has(e.target))
+    .map(e => ({ source: e.source, target: e.target, label: e.label || '' }));
+
+  wrap.innerHTML = '';
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const svg = d3.select(wrap).append('svg').attr('width', W).attr('height', H);
+
+  const defs = svg.append('defs');
+  const glow = defs.append('filter').attr('id','glow-s');
+  glow.append('feGaussianBlur').attr('stdDeviation','3');
+  const halo = defs.append('filter').attr('id','halo-s')
+    .attr('x','-200%').attr('y','-200%').attr('width','500%').attr('height','500%');
+  halo.append('feGaussianBlur').attr('stdDeviation','30');
+
+  const gEdge = svg.append('g'), gNode = svg.append('g');
+
+  const sim = d3.forceSimulation(activeNodes)
+    .force('link', d3.forceLink(edges).id(d => d.id).distance(180).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-600).distanceMax(500))
+    .force('center', d3.forceCenter(W/2, H/2).strength(0.05))
+    .force('collide', d3.forceCollide().radius(65).strength(0.8))
+    .force('x', d3.forceX(W/2).strength(0.02))
+    .force('y', d3.forceY(H/2).strength(0.02))
+    .stop();
+  for (let i = 0; i < 300; i++) sim.tick();
+
+  const eSel = gEdge.selectAll('.e-group').data(edges).enter().append('g').attr('class','e-group');
+  eSel.append('path').attr('class','edge-path').attr('d', d => {
+    const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
+    const dr = Math.sqrt(dx*dx + dy*dy) * 1.5;
+    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+  });
+  eSel.append('text').attr('class','edge-text')
+    .attr('x', d => (d.source.x + d.target.x)/2 + (d.target.y - d.source.y)*0.06)
+    .attr('y', d => (d.source.y + d.target.y)/2 - (d.target.x - d.source.x)*0.06)
+    .text(d => d.label);
+
+  const nSel = gNode.selectAll('.n-group').data(activeNodes).enter().append('g')
+    .attr('class', d => 'n-group' + (d.pinned ? ' pinned' : ''))
+    .attr('transform', d => `translate(${d.x},${d.y})`);
+  nSel.append('circle').attr('class','n-aura').attr('r',32).attr('fill',d=>d.color).attr('filter','url(#halo-s)');
+  nSel.append('circle').attr('class','n-outer').attr('r',22).attr('stroke',d=>d.color);
+  nSel.append('circle').attr('class','n-inner').attr('r',18).attr('fill',d=>d.color);
+  nSel.append('circle').attr('class','n-dot').attr('r',4).attr('fill',d=>d.color).attr('filter','url(#glow-s)');
+  nSel.append('text').attr('class','n-label').attr('dy',36).text(d=>d.label);
+  nSel.append('text').attr('class','n-cat').attr('dy',48).text(d=>d.group);
+
+  // Add Play Session button if session has snapshots
+  if (current.session.snapshot_count > 1) {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary map-play-btn';
+    btn.textContent = 'Play Session';
+    btn.onclick = () => initPlayback();
+    wrap.appendChild(btn);
+  }
+
+  // Export buttons
+  const exportBar = document.createElement('div');
+  exportBar.className = 'map-export-bar';
+  exportBar.innerHTML = `
+    <button class="btn btn-ghost" onclick="exportGraph('pdf')">Export PDF</button>
+    <button class="btn btn-ghost" onclick="exportGraph('video')">Export Video</button>
+  `;
+  wrap.appendChild(exportBar);
+
+  mapRendered = true;
+}
+
+function nodeColor(group) {
+  if (!cmap[group]) cmap[group] = COLORS[ci++ % COLORS.length];
+  return cmap[group];
+}
+
+// ─── Playback Engine ───
+const SPEEDS = [2, 5, 10, 20];
+const PB = {
+  active: false,
+  frames: [],
+  idx: 0,
+  playing: false,
+  speed: 5,
+  speedIdx: 1,
+  sessionStart: 0,
+  sessionEnd: 0,
+  elapsed: 0,
+  lastTick: 0,
+  rafId: null,
+  sim: null,
+  positions: {},
+  cmap: {},
+  ci: 0,
+  gEdge: null,
+  gNode: null,
+  W: 0,
+  H: 0,
+};
+
+async function initPlayback() {
+  if (!current) return;
+  const wrap = document.getElementById('map-wrap');
+
+  // Show loading
+  wrap.innerHTML = '<div class="map-empty"><span class="spinner"></span> Loading snapshots...</div>';
+
+  try {
+    const resp = await fetch(`/v1/sessions/${current.session.id}/snapshots`);
+    const data = await resp.json();
+    if (!data.snapshots || data.snapshots.length < 2) {
+      wrap.innerHTML = '<div class="map-empty">Not enough snapshots for playback.</div>';
+      return;
+    }
+
+    PB.frames = data.snapshots;
+    PB.idx = 0;
+    PB.playing = false;
+    PB.elapsed = 0;
+    PB.positions = {};
+    PB.cmap = {};
+    PB.ci = 0;
+    PB.active = true;
+    PB.sessionStart = PB.frames[0].created_at;
+    PB.sessionEnd = PB.frames[PB.frames.length - 1].created_at;
+
+    // Setup SVG
+    wrap.innerHTML = '';
+    wrap.classList.add('playback');
+    PB.W = wrap.clientWidth;
+    PB.H = wrap.clientHeight;
+
+    const svg = d3.select(wrap).append('svg').attr('width', PB.W).attr('height', PB.H);
+    const defs = svg.append('defs');
+    const glow = defs.append('filter').attr('id','glow-pb');
+    glow.append('feGaussianBlur').attr('stdDeviation','3');
+    const halo = defs.append('filter').attr('id','halo-pb')
+      .attr('x','-200%').attr('y','-200%').attr('width','500%').attr('height','500%');
+    halo.append('feGaussianBlur').attr('stdDeviation','30');
+
+    PB.gEdge = svg.append('g');
+    PB.gNode = svg.append('g');
+
+    // Create persistent simulation
+    PB.sim = d3.forceSimulation([])
+      .force('link', d3.forceLink([]).id(d => d.id).distance(180).strength(0.3))
+      .force('charge', d3.forceManyBody().strength(-600).distanceMax(500))
+      .force('center', d3.forceCenter(PB.W/2, PB.H/2).strength(0.03))
+      .force('collide', d3.forceCollide().radius(65).strength(0.8))
+      .force('x', d3.forceX(PB.W/2).strength(0.015))
+      .force('y', d3.forceY(PB.H/2).strength(0.015))
+      .alphaDecay(0.02)
+      .velocityDecay(0.4)
+      .on('tick', pbTick);
+
+    // Show controls
+    document.getElementById('pb-controls').style.display = 'flex';
+    updatePbDisplay();
+    setupScrubber();
+
+    // Apply first frame with higher alpha to settle
+    applyFrame(0, 0.6);
+
+  } catch (e) {
+    wrap.innerHTML = '<div class="map-empty">Failed to load snapshots.</div>';
+    toast('Failed to load snapshots', true);
+  }
+}
+
+function cleanupPlayback() {
+  if (!PB.active) return;
+  PB.active = false;
+  PB.playing = false;
+  if (PB.rafId) { cancelAnimationFrame(PB.rafId); PB.rafId = null; }
+  if (PB.sim) { PB.sim.stop(); PB.sim = null; }
+  PB.frames = [];
+  PB.positions = {};
+  document.getElementById('pb-controls').style.display = 'none';
+  document.getElementById('map-wrap').classList.remove('playback');
+  const btn = document.getElementById('pb-play');
+  btn.innerHTML = '&#9654;';
+  btn.classList.remove('playing');
+  mapRendered = false;
+}
+
+function togglePlayback() {
+  if (!PB.active || !PB.frames.length) return;
+  if (PB.playing) {
+    pausePlayback();
+  } else {
+    // If at end, restart
+    const duration = PB.sessionEnd - PB.sessionStart;
+    if (PB.elapsed >= duration) {
+      PB.elapsed = 0;
+      PB.idx = 0;
+      PB.positions = {};
+      applyFrame(0, 0.6);
+    }
+    startPlayback();
+  }
+}
+
+function startPlayback() {
+  PB.playing = true;
+  PB.lastTick = performance.now();
+  const btn = document.getElementById('pb-play');
+  btn.innerHTML = '&#9646;&#9646;';
+  btn.classList.add('playing');
+  PB.rafId = requestAnimationFrame(playbackLoop);
+}
+
+function pausePlayback() {
+  PB.playing = false;
+  if (PB.rafId) { cancelAnimationFrame(PB.rafId); PB.rafId = null; }
+  const btn = document.getElementById('pb-play');
+  btn.innerHTML = '&#9654;';
+  btn.classList.remove('playing');
+}
+
+function playbackLoop(now) {
+  if (!PB.playing) return;
+
+  const dt = (now - PB.lastTick) / 1000;
+  PB.lastTick = now;
+  PB.elapsed += dt * PB.speed;
+
+  const duration = PB.sessionEnd - PB.sessionStart;
+  if (PB.elapsed >= duration) {
+    PB.elapsed = duration;
+    PB.playing = false;
+    const btn = document.getElementById('pb-play');
+    btn.innerHTML = '&#8634;';
+    btn.classList.remove('playing');
+    updatePbDisplay();
+    return;
+  }
+
+  const newIdx = findFrameIndex(PB.sessionStart + PB.elapsed);
+  if (newIdx !== PB.idx) {
+    PB.idx = newIdx;
+    applyFrame(newIdx, 0.15);
+  }
+
+  updatePbDisplay();
+  PB.rafId = requestAnimationFrame(playbackLoop);
+}
+
+function findFrameIndex(targetTime) {
+  const frames = PB.frames;
+  let lo = 0, hi = frames.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (frames[mid].created_at <= targetTime) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+function applyFrame(idx, alpha) {
+  const frame = PB.frames[idx];
+  const nodesDict = frame.graph.nodes || {};
+  const rawEdges = frame.graph.edges || [];
+
+  const activeNodes = Object.values(nodesDict)
+    .filter(n => n.state === 'active');
+  const activeIds = new Set(activeNodes.map(n => n.id));
+
+  const prevIds = new Set(Object.keys(PB.positions));
+
+  const nodes = activeNodes.map(n => {
+    const pos = PB.positions[n.id];
+    return {
+      id: n.id, label: n.label, group: n.group,
+      importance: n.importance || 0.5, pinned: n.pinned || false,
+      color: pbColor(n.group),
+      x: pos ? pos.x : PB.W/2 + (Math.random() - 0.5) * 200,
+      y: pos ? pos.y : PB.H/2 + (Math.random() - 0.5) * 200,
+      vx: pos ? pos.vx * 0.5 : 0,
+      vy: pos ? pos.vy * 0.5 : 0,
+    };
+  });
+
+  const edges = rawEdges
+    .filter(e => activeIds.has(e.source) && activeIds.has(e.target))
+    .map(e => ({ source: e.source, target: e.target, label: e.label || '' }));
+
+  // D3 data join — Edges
+  const eData = PB.gEdge.selectAll('.e-group')
+    .data(edges, d => (d.source.id || d.source) + '->' + (d.target.id || d.target));
+  eData.exit().transition().duration(300).style('opacity', 0).remove();
+  const eEnter = eData.enter().append('g').attr('class','e-group').style('opacity', 0);
+  eEnter.append('path').attr('class','edge-path');
+  eEnter.append('text').attr('class','edge-text').text(d => d.label);
+  eEnter.transition().duration(500).style('opacity', 1);
+  eData.merge(eEnter).select('.edge-text').text(d => d.label);
+
+  // D3 data join — Nodes
+  const nData = PB.gNode.selectAll('.n-group').data(nodes, d => d.id);
+  nData.exit().transition().duration(300)
+    .style('opacity', 0).attr('transform', d => `translate(${d.x},${d.y}) scale(0)`).remove();
+
+  const nEnter = nData.enter().append('g')
+    .attr('class', d => 'n-group' + (d.pinned ? ' pinned' : ''))
+    .style('opacity', d => prevIds.has(d.id) ? 1 : 0);
+  nEnter.append('circle').attr('class','n-aura').attr('r',32).attr('fill',d=>d.color).attr('filter','url(#halo-pb)');
+  nEnter.append('circle').attr('class','n-outer').attr('r',22).attr('stroke',d=>d.color);
+  nEnter.append('circle').attr('class','n-inner').attr('r',18).attr('fill',d=>d.color);
+  nEnter.append('circle').attr('class','n-dot').attr('r',4).attr('fill',d=>d.color).attr('filter','url(#glow-pb)');
+  nEnter.append('text').attr('class','n-label').attr('dy',36).text(d=>d.label);
+  nEnter.append('text').attr('class','n-cat').attr('dy',48).text(d=>d.group);
+  nEnter.filter(d => !prevIds.has(d.id)).transition().duration(500).style('opacity', 1);
+
+  const merged = nEnter.merge(nData);
+  merged.select('.n-label').text(d => d.label);
+  merged.select('.n-cat').text(d => d.group);
+  merged.select('.n-outer').attr('stroke', d => d.color);
+  merged.select('.n-inner').attr('fill', d => d.color);
+  merged.select('.n-dot').attr('fill', d => d.color);
+  merged.select('.n-aura').attr('fill', d => d.color);
+  merged.classed('pinned', d => d.pinned);
+
+  // Update simulation
+  PB.sim.nodes(nodes);
+  PB.sim.force('link').links(edges);
+  PB.sim.alpha(alpha).restart();
+}
+
+function pbTick() {
+  // Save positions
+  PB.sim.nodes().forEach(n => {
+    PB.positions[n.id] = { x: n.x, y: n.y, vx: n.vx, vy: n.vy };
+  });
+
+  // Update SVG
+  PB.gEdge.selectAll('.edge-path').attr('d', d => {
+    const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
+    const dr = Math.sqrt(dx*dx + dy*dy) * 1.5;
+    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+  });
+  PB.gEdge.selectAll('.edge-text')
+    .attr('x', d => (d.source.x + d.target.x)/2 + (d.target.y - d.source.y)*0.06)
+    .attr('y', d => (d.source.y + d.target.y)/2 - (d.target.x - d.source.x)*0.06);
+  PB.gNode.selectAll('.n-group')
+    .attr('transform', d => `translate(${d.x},${d.y})`);
+}
+
+function pbColor(group) {
+  if (!PB.cmap[group]) PB.cmap[group] = COLORS[PB.ci++ % COLORS.length];
+  return PB.cmap[group];
+}
+
+// ─── Playback UI ───
+function updatePbDisplay() {
+  const duration = PB.sessionEnd - PB.sessionStart;
+  const pct = duration > 0 ? (PB.elapsed / duration) * 100 : 0;
+
+  document.getElementById('pb-fill').style.width = pct + '%';
+  document.getElementById('pb-handle').style.left = pct + '%';
+  document.getElementById('pb-time').textContent = fmtTime(PB.elapsed) + ' / ' + fmtTime(duration);
+  document.getElementById('pb-frame').textContent = (PB.idx + 1) + ' / ' + PB.frames.length;
+}
+
+function toggleGraphFullscreen() {
+  const panel = document.getElementById('tab-mindmap');
+  panel.classList.toggle('fullscreen');
+  // Trigger resize so D3 recalculates
+  window.dispatchEvent(new Event('resize'));
+  if (PB.sim) PB.sim.alpha(0.3).restart();
+}
+
+// Exit fullscreen on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const panel = document.getElementById('tab-mindmap');
+    if (panel.classList.contains('fullscreen')) {
+      panel.classList.remove('fullscreen');
+      window.dispatchEvent(new Event('resize'));
+      if (PB.sim) PB.sim.alpha(0.3).restart();
+    }
+  }
+});
+
+function cycleSpeed() {
+  PB.speedIdx = (PB.speedIdx + 1) % SPEEDS.length;
+  PB.speed = SPEEDS[PB.speedIdx];
+  document.getElementById('pb-speed').textContent = PB.speed + 'x';
+}
+
+function setupScrubber() {
+  const track = document.getElementById('pb-track');
+  let dragging = false;
+  let wasPlaying = false;
+
+  function scrubTo(e) {
+    const rect = track.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const duration = PB.sessionEnd - PB.sessionStart;
+    PB.elapsed = pct * duration;
+
+    const newIdx = findFrameIndex(PB.sessionStart + PB.elapsed);
+    const bigJump = Math.abs(newIdx - PB.idx) > 5;
+    if (bigJump) PB.positions = {};
+    if (newIdx !== PB.idx) {
+      PB.idx = newIdx;
+      applyFrame(newIdx, bigJump ? 0.6 : 0.15);
+    }
+    updatePbDisplay();
+  }
+
+  track.addEventListener('mousedown', e => {
+    dragging = true;
+    wasPlaying = PB.playing;
+    if (PB.playing) pausePlayback();
+    scrubTo(e);
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (dragging) scrubTo(e);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (dragging) {
+      dragging = false;
+      if (wasPlaying) startPlayback();
+    }
+  });
+}
+
+// ─── Export ───
+function buildMarkdown() {
+  const s = current.session;
+  let md = `# Session Recap: ${s.topic || s.id}\n`;
+  md += `**Date:** ${fmtDate(s.created_at)}  \n`;
+  md += `**Duration:** ${s.ended_at ? fmtDuration(s.ended_at - s.created_at) : 'In progress'}  \n`;
+  md += `**Segments:** ${s.segment_count || 0}\n\n`;
+
+  if (current.recap) {
+    const r = current.recap.recap;
+    if (r.schema_version === 2) {
+      // V2 recap
+      if (r.elevator_pitch) { md += `## Elevator Pitch\n\n${r.elevator_pitch}\n\n`; }
+      if (r.retain && r.retain.length) {
+        md += `## Three Things to Retain\n\n`;
+        r.retain.forEach((item, i) => { md += `${i + 1}. ${item}\n`; });
+        md += `\n`;
+      }
+      md += `## Non-Obvious Connections\n\n`;
+      if (r.non_obvious_connections && r.non_obvious_connections.length) {
+        r.non_obvious_connections.forEach(conn => {
+          md += `**${(conn.topics || []).join(' \u2194 ')}:** ${conn.insight}\n\n`;
+        });
+      } else {
+        md += `_No non-obvious connections surfaced this session._\n\n`;
+      }
+      if (r.contradictions && r.contradictions.length) {
+        md += `## Contradictions\n\n`;
+        r.contradictions.forEach(c => { md += `- ${c}\n`; });
+        md += `\n`;
+      }
+      if (r.summary) { md += `## Summary\n\n${r.summary}\n\n`; }
+      if (r.decisions && r.decisions.length) {
+        md += `## Decisions\n\n`;
+        r.decisions.forEach(d => { md += `- ${d}\n`; });
+        md += `\n`;
+      }
+      if (r.open_threads && r.open_threads.length) {
+        md += `## Open Threads\n\n`;
+        r.open_threads.forEach(t => { md += `- ${t}\n`; });
+        md += `\n`;
+      }
+    } else {
+      // V1 recap
+      if (r.summary) { md += `## Summary\n\n${r.summary}\n\n`; }
+      if (r.key_topics && r.key_topics.length) {
+        md += `## Key Topics\n\n`;
+        r.key_topics.forEach(t => { md += `- ${t}\n`; });
+        md += `\n`;
+      }
+      if (r.decisions && r.decisions.length) {
+        md += `## Decisions\n\n`;
+        r.decisions.forEach(d => { md += `- ${d}\n`; });
+        md += `\n`;
+      }
+      if (r.action_items && r.action_items.length) {
+        md += `## Action Items\n\n`;
+        r.action_items.forEach(a => { md += `- ${a}\n`; });
+        md += `\n`;
+      }
+      if (r.open_questions && r.open_questions.length) {
+        md += `## Open Questions\n\n`;
+        r.open_questions.forEach(q => { md += `- ${q}\n`; });
+        md += `\n`;
+      }
+    }
+  }
+
+  const model = current.recap?.model || '';
+  const lang = current.recap?.recap?.language || '';
+  md += `---\n\n_Generated by LiveMind${model ? ' · Model: ' + model : ''}${lang ? ' · Language: ' + lang.toUpperCase() : ''}_\n`;
+
+  return md;
+}
+
+// ─── Graph Export (PDF / Video) ───
+
+async function exportGraph(fmt) {
+  if (!current) return;
+  const sid = current.session.id;
+  const btn = event.target;
+  const origText = btn.textContent;
+
+  btn.classList.add('exporting');
+  btn.textContent = fmt === 'pdf' ? 'Generating PDF...' : 'Rendering video...';
+  toast(`Starting ${fmt.toUpperCase()} export...`);
+
+  try {
+    // Start export
+    const startResp = await fetch(`/v1/sessions/${sid}/export/${fmt}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(fmt === 'video' ? {fps: 10, speed: 2.0, max_hold: 3.0} : {}),
+    });
+    const startData = await startResp.json();
+    if (startData.status === 'error') throw new Error(startData.error);
+
+    // Poll for completion
+    let status = 'running';
+    while (status === 'running' || status === 'started') {
+      await new Promise(r => setTimeout(r, 2000));
+      const pollResp = await fetch(`/v1/sessions/${sid}/export/${fmt}/status`);
+      const pollData = await pollResp.json();
+      status = pollData.status;
+      if (status === 'error') throw new Error(pollData.error || 'Export failed');
+    }
+
+    // Download
+    if (status === 'done') {
+      const a = document.createElement('a');
+      a.href = `/v1/sessions/${sid}/export/${fmt}/download`;
+      a.download = `livemind-${sid}.${fmt === 'pdf' ? 'pdf' : 'mp4'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast(`${fmt.toUpperCase()} exported`);
+    }
+  } catch (e) {
+    console.error('Export failed:', e);
+    toast(`Export failed: ${e.message}`, true);
+  } finally {
+    btn.classList.remove('exporting');
+    btn.textContent = origText;
+  }
+}
+
+function copyMarkdown() {
+  navigator.clipboard.writeText(buildMarkdown()).then(
+    () => toast('Copied to clipboard'),
+    () => toast('Failed to copy', true)
+  );
+}
+
+function downloadMarkdown() {
+  const s = current.session;
+  const name = `${s.topic || s.id}-recap.md`.replace(/\s+/g, '-').toLowerCase();
+  const blob = new Blob([buildMarkdown()], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+  toast('Downloaded ' + name);
+}
+
+function exportPdf() {
+  const s = current.session;
+  const name = `${s.topic || s.id}-recap`.replace(/\s+/g, '-').toLowerCase();
+  const duration = s.ended_at ? fmtDuration(s.ended_at - s.created_at) : 'In progress';
+  const segCount = s.segment_count || 0;
+  const stats = current.recap?.recap?.transcript_stats;
+  const charCount = stats ? (stats.total_chars > 999 ? (stats.total_chars / 1000).toFixed(1) + 'k' : stats.total_chars) + ' chars' : '';
+  const model = current.recap?.model || '';
+  const lang = current.recap?.recap?.language || '';
+
+  // Open a new window with a self-contained print-ready document.
+  // This avoids all html2canvas issues (rasterization, font loading, flex bugs, off-screen clipping).
+  // The browser's native Print → Save as PDF gives a real vector PDF with selectable text.
+  const win = window.open('', '_blank');
+  if (!win) { toast('Popup blocked — please allow popups for PDF export', true); return; }
+
+  let body = '';
+
+  // ── Recap content ──
+  if (current.recap) {
+    const r = current.recap.recap;
+
+    if (r.schema_version === 2) {
+      if (r.elevator_pitch) {
+        body += `<p class="pitch">${esc(r.elevator_pitch)}</p>`;
+      }
+      if (r.retain && r.retain.length) {
+        body += `<h2>Three Things to Retain</h2><ol>`;
+        r.retain.forEach(item => { body += `<li>${esc(item)}</li>`; });
+        body += `</ol>`;
+      }
+      body += `<h2>Non-Obvious Connections</h2>`;
+      if (r.non_obvious_connections && r.non_obvious_connections.length) {
+        r.non_obvious_connections.forEach(conn => {
+          const topics = (conn.topics || []).map(t => `<strong>${esc(t)}</strong>`).join(' &harr; ');
+          body += `<div class="conn-card"><div class="conn-topics">${topics}</div><div class="conn-insight">${esc(conn.insight || '')}</div></div>`;
+        });
+      } else {
+        body += `<p class="muted">No non-obvious connections surfaced this session.</p>`;
+      }
+      if (r.contradictions && r.contradictions.length) {
+        body += `<h2>Contradictions</h2><ul>`;
+        r.contradictions.forEach(c => { body += `<li>${esc(c)}</li>`; });
+        body += `</ul>`;
+      }
+      if (r.summary) {
+        body += `<h2>Summary</h2>`;
+        r.summary.split('\n\n').forEach(p => { body += `<p>${esc(p)}</p>`; });
+      }
+      if (r.decisions && r.decisions.length) {
+        body += `<h2>Decisions</h2><ul>`;
+        r.decisions.forEach(d => { body += `<li>${esc(d)}</li>`; });
+        body += `</ul>`;
+      }
+      if (r.open_threads && r.open_threads.length) {
+        body += `<h2>Open Threads</h2><ul>`;
+        r.open_threads.forEach(t => { body += `<li>${esc(t)}</li>`; });
+        body += `</ul>`;
+      }
+    } else {
+      if (r.summary) {
+        body += `<h2>Summary</h2>`;
+        r.summary.split('\n\n').forEach(p => { body += `<p>${esc(p)}</p>`; });
+      }
+      [['Key Topics', r.key_topics], ['Decisions', r.decisions], ['Action Items', r.action_items], ['Open Questions', r.open_questions]]
+        .forEach(([title, items]) => {
+          if (items && items.length) {
+            body += `<h2>${title}</h2><ul>`;
+            items.forEach(i => { body += `<li>${esc(i)}</li>`; });
+            body += `</ul>`;
+          }
+        });
+    }
+  } else {
+    body += `<p class="muted">No recap generated for this session.</p>`;
+  }
+
+
+  // ── Full HTML document ──
+  const doc = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>${esc(s.topic || 'Session Recap')} — LiveMind</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  @page { size: A4; margin: 18mm 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 11pt;
+    line-height: 1.7;
+    color: #1a1a2e;
+    max-width: 170mm;
+  }
+
+  .brand {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #22a67a;
+    margin-bottom: 4px;
+  }
+
+  h1 {
+    font-size: 18pt;
+    font-weight: 500;
+    color: #111;
+    margin-bottom: 3px;
+  }
+
+  .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    color: #888;
+    letter-spacing: 0.3px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #22a67a;
+    margin: 20px 0 8px 0;
+  }
+
+  p { margin-bottom: 8px; }
+  .pitch {
+    font-size: 13pt;
+    line-height: 1.5;
+    color: #111;
+    margin: 0 0 16px 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .muted { color: #999; font-style: italic; font-size: 10pt; }
+
+  ul, ol { margin: 0 0 8px 20px; padding: 0; }
+  li { margin-bottom: 5px; line-height: 1.6; }
+
+  .conn-card {
+    background: #f7f7f7;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    break-inside: avoid;
+  }
+  .conn-topics { font-weight: 600; font-size: 10pt; margin-bottom: 3px; }
+  .conn-insight { font-size: 9.5pt; color: #444; line-height: 1.5; }
+
+  .footer {
+    margin-top: 24px;
+    padding-top: 10px;
+    border-top: 1px solid #e0e0e0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    color: #aaa;
+    letter-spacing: 0.3px;
+  }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+
+  .print-btn {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 10px 20px;
+    background: #22a67a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .print-btn:hover { opacity: 0.9; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">Save as PDF</button>
+
+<div class="brand">LiveMind Session Recap</div>
+<h1>${esc(s.topic || 'Untitled Session')}</h1>
+<div class="meta">${fmtDate(s.created_at)} &middot; ${duration} &middot; ${segCount} segments${charCount ? ' &middot; ' + charCount : ''}</div>
+
+${body}
+
+<div class="footer">
+  Generated by LiveMind${model ? ' &middot; Model: ' + model : ''}${lang ? ' &middot; Language: ' + lang.toUpperCase() : ''} &middot; ${new Date().toLocaleDateString()}
+</div>
+
+</body></html>`;
+
+  win.document.write(doc);
+  win.document.close();
+  toast('PDF preview opened — click "Save as PDF" or use Ctrl+P');
+}
+
+function buildTranscriptMarkdown() {
+  const s = current.session;
+  if (!current.transcript || !current.transcript.length) return '';
+  const t0 = current.transcript[0].timestamp;
+  const showRaw = document.getElementById('toggle-raw')?.checked || false;
+  const hasCleaned = current.transcript.some(seg => seg.cleaned_text);
+  const cleanedNote = (!showRaw && hasCleaned) ? ' (cleaned)' : '';
+
+  let md = `# Transcript: ${s.topic || s.id}${cleanedNote}\n`;
+  md += `**Date:** ${fmtDate(s.created_at)}  \n`;
+  md += `**Duration:** ${s.ended_at ? fmtDuration(s.ended_at - s.created_at) : 'In progress'}  \n`;
+  md += `**Segments:** ${current.transcript.length}\n\n---\n\n`;
+
+  current.transcript.forEach(seg => {
+    const text = (!showRaw && seg.cleaned_text) ? seg.cleaned_text : seg.text;
+    const langTag = seg.stt_language ? ` \`${seg.stt_language}\`` : '';
+    md += `**[${fmtTime(seg.timestamp - t0)}]**${langTag} ${text}\n\n`;
+  });
+
+  md += `---\n\n_Generated by LiveMind_\n`;
+  return md;
+}
+
+function copyTranscriptMarkdown() {
+  const md = buildTranscriptMarkdown();
+  if (!md) { toast('No transcript to copy', true); return; }
+  navigator.clipboard.writeText(md).then(
+    () => toast('Transcript copied to clipboard'),
+    () => toast('Failed to copy', true)
+  );
+}
+
+function downloadTranscriptMarkdown() {
+  const md = buildTranscriptMarkdown();
+  if (!md) { toast('No transcript to download', true); return; }
+  const s = current.session;
+  const name = `${s.topic || s.id}-transcript.md`.replace(/\s+/g, '-').toLowerCase();
+  const blob = new Blob([md], {type: 'text/markdown'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+  toast('Downloaded ' + name);
+}
+
+function exportTranscriptPdf() {
+  const s = current.session;
+  const name = `${s.topic || s.id}-transcript`.replace(/\s+/g, '-').toLowerCase();
+
+  if (!current.transcript || !current.transcript.length) {
+    toast('No transcript to export', true);
+    return;
+  }
+
+  const t0 = current.transcript[0].timestamp;
+  const duration = s.ended_at ? fmtDuration(s.ended_at - s.created_at) : 'In progress';
+  const showRaw = document.getElementById('toggle-raw')?.checked || false;
+
+  let rows = '';
+  current.transcript.forEach(seg => {
+    const offset = seg.timestamp - t0;
+    const text = (!showRaw && seg.cleaned_text) ? seg.cleaned_text : seg.text;
+    const langTag = seg.stt_language ? `<span class="lang-badge">${seg.stt_language}</span>` : '';
+    rows += `<div class="ts-row"><span class="ts-time">${fmtTime(offset)}</span> <span class="ts-text">${esc(text)}${langTag}</span></div>`;
+  });
+
+  const cleanedNote = (!showRaw && current.transcript.some(seg => seg.cleaned_text)) ? ' (cleaned)' : ' (raw STT)';
+
+  const win = window.open('', '_blank');
+  if (!win) { toast('Popup blocked — please allow popups for PDF export', true); return; }
+
+  const doc = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>${esc(s.topic || 'Transcript')} — LiveMind</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  @page { size: A4; margin: 18mm 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 10pt;
+    line-height: 1.6;
+    color: #1a1a2e;
+    max-width: 170mm;
+  }
+
+  .brand {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #22a67a;
+    margin-bottom: 4px;
+  }
+
+  h1 { font-size: 18pt; font-weight: 500; color: #111; margin-bottom: 3px; }
+
+  .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    color: #888;
+    letter-spacing: 0.3px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .ts-row {
+    padding: 3px 0;
+    border-bottom: 1px solid #f0f0f0;
+    break-inside: avoid;
+    font-size: 9.5pt;
+    line-height: 1.5;
+  }
+  .ts-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    color: #999;
+    margin-right: 8px;
+  }
+  .ts-text { color: #333; }
+  .lang-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt;
+    color: #aaa;
+    text-transform: uppercase;
+    margin-left: 4px;
+  }
+
+  .footer {
+    margin-top: 24px;
+    padding-top: 10px;
+    border-top: 1px solid #e0e0e0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    color: #aaa;
+  }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+
+  .print-btn {
+    position: fixed; top: 16px; right: 16px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 10px 20px; background: #22a67a; color: white;
+    border: none; border-radius: 6px; cursor: pointer;
+  }
+  .print-btn:hover { opacity: 0.9; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">Save as PDF</button>
+
+<div class="brand">LiveMind Transcript${cleanedNote}</div>
+<h1>${esc(s.topic || 'Untitled Session')}</h1>
+<div class="meta">${fmtDate(s.created_at)} &middot; ${duration} &middot; ${current.transcript.length} segments</div>
+
+${rows}
+
+<div class="footer">Generated by LiveMind &middot; ${new Date().toLocaleDateString()}</div>
+
+</body></html>`;
+
+  win.document.write(doc);
+  win.document.close();
+  toast('Transcript PDF preview opened — click "Save as PDF" or use Ctrl+P');
+}
+
+// ─── Helpers ───
+function fmtDate(ts) {
+  return new Date(ts * 1000).toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function fmtDuration(secs) {
+  if (secs < 60) return `${Math.round(secs)}s`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s`;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function fmtTime(secs) {
+  const m = Math.floor(Math.abs(secs) / 60);
+  const s = Math.floor(Math.abs(secs) % 60);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function esc(str) {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+
+function toast(msg, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('error', !!isError);
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

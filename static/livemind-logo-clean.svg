@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">
+  <title>LiveMind</title>
+  <desc>Logo lockup for the LiveMind sovereign system. Verdigris seal on the left, serif wordmark on the right.</desc>
+  <g transform="translate(60, 60)" fill="none" stroke="#5DCAA5">
+    <circle r="46" stroke-width="1.8"/>
+    <circle r="40" stroke-width="0.7"/>
+    <line x1="46" y1="0" x2="40" y2="0" stroke-width="1.6"/>
+    <line x1="-46" y1="0" x2="-40" y2="0" stroke-width="1.6"/>
+    <line x1="0" y1="46" x2="0" y2="40" stroke-width="1.6"/>
+    <polygon points="-3,-46 3,-46 0,-40" fill="#5DCAA5" stroke="none"/>
+    <line x1="0" y1="-13" x2="-13" y2="10" stroke-width="1.4" stroke-linecap="round"/>
+    <line x1="0" y1="-13" x2="13" y2="10" stroke-width="1.4" stroke-linecap="round"/>
+    <line x1="-13" y1="10" x2="13" y2="10" stroke-width="1.4" stroke-linecap="round"/>
+    <circle cx="0" cy="-13" r="3" fill="#5DCAA5" stroke="none"/>
+    <circle cx="-13" cy="10" r="3" fill="#5DCAA5" stroke="none"/>
+    <circle cx="13" cy="10" r="3" fill="#5DCAA5" stroke="none"/>
+    <text x="0" y="34" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="9" letter-spacing="1.4" fill="#5DCAA5" stroke="none">GL·03</text>
+  </g>
+  <text x="130" y="73" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="500" letter-spacing="5" fill="#9FE1CB">LIVEMIND</text>
+</svg>

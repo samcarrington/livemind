@@ -1,37 +1,33 @@
 # Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
-.coverage
-coverage.xml
-
-# Virtual environments
 .venv/
-venv/
+__pycache__/
+*.pyc
 
-# Environment and secrets
+# Environment
 .env
-.env.*
 
-# Database
+# SQLite
 *.db
-*.db-shm
+*.db-journal
 *.db-wal
+*.db-shm
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
+# Session data / exports
+export_sessions/
+*_export.zip
 
-# macOS
-.DS_Store
+# Audio / media
+*.m4a
+*.mp3
+*.wav
 
-# Editors/IDE
-.vscode/
-.idea/
+# Transcripts (session data)
+*-transcript.txt
 
-# Local tool config
+# Specs / internal docs
+specs/
+*-spec.md
+*-spec-*.md
+
+# Claude Code
 .claude/
