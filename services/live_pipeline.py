@@ -6,12 +6,15 @@ app lifespan.
 
 import asyncio
 import json
+import logging
 import queue
+import sqlite3
 import sys
 import time
 
 import numpy as np
 from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect
 
 import db
 import stt_worker
@@ -32,6 +35,8 @@ from services.runtime import (
 )
 from services.session_runtime import live_session
 
+logger = logging.getLogger(__name__)
+
 
 async def broadcast_llm_response(status_code, data, req_id):
     """Send LLM response to ALL connected clients (guards against disconnected sockets)."""
@@ -46,8 +51,8 @@ async def broadcast_llm_response(status_code, data, req_id):
     for ws in list(connected_clients):
         try:
             await ws.send_text(payload)
-        except Exception:
-            pass
+        except (WebSocketDisconnect, RuntimeError) as exc:
+            logger.debug("Could not broadcast to disconnected WebSocket: %s", exc)
 
 
 async def proxy_claude(websocket: WebSocket, req: dict):
@@ -103,6 +108,7 @@ async def proxy_claude(websocket: WebSocket, req: dict):
             with metrics_lock:
                 metrics["claude_last_error"] = ""
 
+            raw_text = ""
             try:
                 raw_text = "".join(c.get("text", "") for c in data.get("content", []))
                 parsed = extract_graph_json(raw_text)
@@ -169,11 +175,13 @@ async def proxy_claude(websocket: WebSocket, req: dict):
                     for ws in list(connected_clients):
                         try:
                             await ws.send_text(graph_msg)
-                        except Exception:
-                            pass
+                        except (ConnectionError, OSError) as send_err:
+                            print(
+                                f"  WebSocket send error: {send_err}", file=sys.stderr
+                            )
                 else:
                     print(
-                        f"  LLM: parsed JSON but missing nodes/edges keys",
+                        "  LLM: parsed JSON but missing nodes/edges keys",
                         file=sys.stderr,
                     )
                     with metrics_lock:
@@ -182,7 +190,10 @@ async def proxy_claude(websocket: WebSocket, req: dict):
                         )
             except (json.JSONDecodeError, KeyError) as parse_err:
                 print(f"  LLM: response parse error: {parse_err}", file=sys.stderr)
-                print(f"  LLM: raw text: {raw_text[:500]}", file=sys.stderr)
+                print(
+                    f"  LLM: raw text: {raw_text[:500]}",
+                    file=sys.stderr,
+                )
                 with metrics_lock:
                     metrics["llm_parse_fail"] = metrics.get("llm_parse_fail", 0) + 1
                     metrics["llm_last_raw_fail"] = raw_text[:500]
@@ -201,7 +212,7 @@ async def proxy_claude(websocket: WebSocket, req: dict):
                 )
 
         await broadcast_llm_response(status_code, data, req.get("req_id"))
-    except Exception as e:
+    except (TimeoutError, OSError, RuntimeError, ValueError, TypeError) as e:
         dt = time.time() - t0
         print(
             f"  LLM: EXCEPTION in proxy ({dt:.1f}s) — {type(e).__name__}: {e}",
@@ -227,7 +238,7 @@ async def handle_audio_chunk(audio_arr: np.ndarray, source_rate: int):
             metrics,
             metrics_lock,
         )
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError) as e:
         print(f"  STT error: {e}", file=sys.stderr)
         return
 
@@ -259,8 +270,8 @@ async def handle_audio_chunk(audio_arr: np.ndarray, source_rate: int):
         for ws in list(connected_clients):
             try:
                 await ws.send_text(payload)
-            except Exception:
-                pass
+            except (ConnectionError, OSError) as exc:
+                logger.warning("Failed to broadcast transcript to client: %s", exc)
 
 
 async def broadcast_loop():
@@ -289,7 +300,7 @@ async def broadcast_loop():
                 for ws in list(connected_clients):
                     try:
                         await ws.send_text(p)
-                    except Exception:
+                    except (OSError, RuntimeError, WebSocketDisconnect):
                         pass
         except queue.Empty:
             pass
@@ -308,5 +319,5 @@ async def snapshot_loop():
                     reconciler.get_full_state(),
                     "periodic",
                 )
-            except Exception as e:
+            except sqlite3.Error as e:
                 print(f"  Snapshot error: {e}", file=sys.stderr)
