@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveMind — Operator Guide</title>
+<link rel="icon" type="image/svg+xml" href="/livemind-favicon.svg">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #080814;
+  --panel: #0c0d18;
+  --card: rgba(255,255,255,0.04);
+  --bdr: rgba(255,255,255,0.08);
+  --txt: #d4d6e0;
+  --dim: #7a7d94;
+  --bright: #f2f2f6;
+  --green: #34d399;
+  --purple: #a78bfa;
+  --rose: #fb7185;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 48px 32px 120px;
+}
+
+/* ─── Header ─── */
+.doc-header {
+  margin-bottom: 48px;
+}
+.doc-header h1 {
+  font-size: 32px; font-weight: 300;
+  color: var(--bright);
+  letter-spacing: -0.5px;
+  margin: 12px 0 8px;
+}
+.doc-header .subtitle {
+  font-size: 15px; color: var(--dim);
+  font-weight: 300;
+}
+
+/* ─── Nav ─── */
+.doc-nav {
+  position: sticky; top: 0;
+  background: rgba(8,8,20,0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--bdr);
+  padding: 12px 0;
+  margin: 0 -32px 40px;
+  padding-left: 32px; padding-right: 32px;
+  z-index: 50;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.doc-nav a {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 400;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--dim);
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid var(--bdr);
+  border-radius: 100px;
+  transition: all .2s;
+}
+.doc-nav a:hover { border-color: var(--green); color: var(--green); }
+
+/* ─── Sections ─── */
+section { margin-bottom: 48px; }
+
+h2 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--bdr);
+}
+
+h3 {
+  font-size: 17px; font-weight: 500;
+  color: var(--bright);
+  margin: 24px 0 10px;
+}
+
+p { margin-bottom: 12px; }
+
+ul, ol {
+  margin: 8px 0 16px 20px;
+}
+li { margin-bottom: 6px; }
+
+code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  background: rgba(255,255,255,0.04);
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--purple);
+}
+
+pre {
+  background: var(--panel);
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin: 12px 0 18px;
+  overflow-x: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--txt);
+}
+
+kbd {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 2px 8px;
+  color: var(--bright);
+  white-space: nowrap;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 18px;
+  font-size: 14px;
+}
+th {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; font-weight: 500;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--dim);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bdr);
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  vertical-align: top;
+}
+
+.callout {
+  border-left: 3px solid var(--green);
+  padding: 12px 16px;
+  margin: 12px 0 18px;
+  background: rgba(52,211,153,0.04);
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+}
+.callout.warn {
+  border-color: var(--amber);
+  background: rgba(251,191,36,0.04);
+}
+.callout strong { color: var(--bright); }
+
+a { color: var(--green); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.dot.green { background: var(--green); }
+.dot.purple { background: var(--purple); }
+.dot.amber { background: var(--amber); }
+.dot.rose { background: var(--rose); }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+.doc-card {
+  background: var(--panel);
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  padding: 16px;
+}
+.doc-card .card-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; font-weight: 500;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+.doc-card .card-body {
+  font-size: 14px;
+  color: var(--bright);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<a href="/sessions" style="display:inline-flex;align-items:center;gap:6px;margin-bottom:28px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:1px solid var(--bdr);border-radius:4px;padding:5px 12px;transition:color .2s,border-color .2s;" onmouseover="this.style.color='var(--txt)';this.style.borderColor='rgba(255,255,255,0.15)'" onmouseout="this.style.color='var(--dim)';this.style.borderColor='var(--bdr)'">← Sessions</a>
+
+<div class="doc-header">
+  <img src="/livemind-logo-clean.svg" alt="LiveMind" style="width:200px;opacity:0.85;">
+  <h1>Operator Guide</h1>
+  <div class="subtitle">How to run a session, monitor the system, and work with results</div>
+</div>
+
+<nav class="doc-nav">
+  <a href="#overview">Overview</a>
+  <a href="#before-session">Before a Session</a>
+  <a href="#during-session">During a Session</a>
+  <a href="#display">Display View</a>
+  <a href="#after-session">After a Session</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+  <a href="#urls">URLs</a>
+</nav>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="overview">
+<h2>Overview</h2>
+
+<p>LiveMind captures live speech, transcribes it, and builds an animated knowledge graph as people talk. All processing happens locally — no data leaves the system.</p>
+
+<p>There are three views, each for a different moment:</p>
+
+<div class="card-grid">
+  <div class="doc-card">
+    <div class="card-title">Display</div>
+    <div class="card-body">Projected for the audience. Shows the live knowledge graph and transcript. No controls.<br><code>/</code></div>
+  </div>
+  <div class="doc-card">
+    <div class="card-title">Monitor</div>
+    <div class="card-body">The operator's control surface. Session setup, audio capture, live metrics.<br><code>/monitor</code></div>
+  </div>
+  <div class="doc-card">
+    <div class="card-title">Sessions</div>
+    <div class="card-body">Post-event review. Browse sessions, generate recaps, export, synthesize.<br><code>/sessions</code></div>
+  </div>
+</div>
+
+<p>The display is purely passive — it never creates or ends sessions. The monitor owns the session lifecycle. The sessions page is for after the event.</p>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="before-session">
+<h2>Before a Session</h2>
+
+<h3>Setup checklist</h3>
+<ol>
+  <li>Open <code>/monitor</code> on the operator's laptop</li>
+  <li>Open <code>/</code> on the audience-facing screen (projector, TV, shared screen)</li>
+  <li>The display will show the LiveMind logo and "Waiting for session to start"</li>
+</ol>
+
+<h3>Session setup (Monitor)</h3>
+<p>The monitor starts in the setup phase. Fill in:</p>
+
+<table>
+  <tr><th>Field</th><th>Notes</th></tr>
+  <tr><td><strong>Topic</strong></td><td>The session name. Shows in the display header and recap. Be descriptive — it helps the AI focus.</td></tr>
+  <tr><td><strong>Language</strong></td><td>Set the primary language being spoken. Auto-detect works for English. For Norwegian, Swedish, or mixed sessions: set explicitly for best results.</td></tr>
+  <tr><td><strong>Audio Device</strong></td><td>Select the microphone. The system remembers your last choice.</td></tr>
+</table>
+
+<p>Click <strong>Start Session</strong>. This creates the session on the server, starts audio capture, and switches to the live monitoring view. The display will wake up and show the graph.</p>
+
+<div class="callout">
+  <strong>Tip:</strong> Test audio before the meeting starts. The level meter should react when you speak. If it doesn't, check your microphone selection and browser permissions.
+</div>
+
+<h3>Language notes</h3>
+<ul>
+  <li><strong>English:</strong> Auto-detect works well</li>
+  <li><strong>Norwegian:</strong> Set language to Norwegian explicitly. Auto-detect is unreliable for Norwegian.</li>
+  <li><strong>Swedish:</strong> Works well when set explicitly</li>
+  <li><strong>Mixed sessions:</strong> Set to the primary language. The STT will still catch code-switching to English.</li>
+</ul>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="during-session">
+<h2>During a Session</h2>
+
+<h3>Monitor layout</h3>
+<p>The live monitor has three columns:</p>
+
+<table>
+  <tr><th>Column</th><th>What's there</th></tr>
+  <tr><td><strong>Left</strong></td><td>Audio level meter, VAD indicator (speaking/silent), waveform, language picker, Start/Stop/Mute buttons</td></tr>
+  <tr><td><strong>Center</strong></td><td>Connection health (WS/STT/LLM), session stats (segments, chars, detected language), metrics grid, STT and LLM backend switchers</td></tr>
+  <tr><td><strong>Right</strong></td><td>Graph mirror — a small replica of what the audience sees</td></tr>
+</table>
+
+<p>The transcript bar at the bottom shows the live transcript as it comes in.</p>
+
+<h3>Audio controls</h3>
+<table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td><strong>Start / Stop</strong></td><td>Start or stop audio capture. When stopped, no audio is sent to the server.</td></tr>
+  <tr><td><strong>Mute</strong></td><td>Audio is still captured (you can see the meter move) but not sent. Useful for a quick private aside.</td></tr>
+</table>
+
+<h3>Status indicators</h3>
+<table>
+  <tr><th>Dot</th><th>Meaning</th></tr>
+  <tr><td><span class="dot green"></span> Green</td><td>Healthy — connected and processing</td></tr>
+  <tr><td><span class="dot amber"></span> Amber</td><td>Warning — rate limited or circuit breaker active</td></tr>
+  <tr><td><span class="dot rose"></span> Red</td><td>Error — disconnected or failing</td></tr>
+</table>
+
+<h3>What to watch</h3>
+<ul>
+  <li><strong>STT Latency:</strong> How long each audio chunk takes to transcribe. Under 2s is good. Over 5s means the STT is struggling.</li>
+  <li><strong>LLM Latency:</strong> How long graph analysis takes. Under 20s is normal. Over 40s means the system is under load — notify the system administrator or switch to Gemini Flash (cloud) as fallback.</li>
+  <li><strong>Circuit Breaker:</strong> Should say "closed". If it says "open", the LLM is failing and the system is backing off. Transcript keeps flowing, but the graph won't update until it recovers.</li>
+  <li><strong>Graph (N / 24):</strong> How many nodes are active vs the 24-node budget. A full graph is fine — the reconciler manages it automatically.</li>
+</ul>
+
+<h3>Switching backends live</h3>
+<p>You can change STT backend and LLM during a session without stopping. Use this if:</p>
+<ul>
+  <li>The STT is struggling with the language — switch backends</li>
+  <li>The LLM is slow or erroring — switch from local (Gemma) to cloud (Gemini Flash) as fallback</li>
+</ul>
+
+<h3>Ending a session</h3>
+<p>Click <strong>End Session</strong> in the header bar. This:</p>
+<ol>
+  <li>Stops audio capture</li>
+  <li>Stores a final graph snapshot</li>
+  <li>Saves the session summary</li>
+  <li>Returns the monitor to the setup phase</li>
+  <li>The display goes back to "Waiting for session to start"</li>
+</ol>
+
+<p>All data is preserved. You can start a new session immediately.</p>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="display">
+<h2>Display View</h2>
+
+<p>The display (<code>/</code>) is what the audience sees. It's completely passive — the operator controls everything from the monitor.</p>
+
+<h3>What's on screen</h3>
+<ul>
+  <li><strong>Knowledge graph:</strong> Animated force-directed graph. Nodes are concepts, edges are relationships. Colours group related ideas.</li>
+  <li><strong>Transcript:</strong> Live scrolling text in the sidebar. Latest chunk is highlighted, older text fades.</li>
+  <li><strong>Status pill:</strong> Top-left corner shows the current state</li>
+</ul>
+
+<table>
+  <tr><th>LED</th><th>Meaning</th></tr>
+  <tr><td><span class="dot green"></span> Green pulse</td><td>Listening — audio is being captured and transcribed</td></tr>
+  <tr><td><span class="dot purple"></span> Purple pulse</td><td>Mapping — AI is analysing the transcript</td></tr>
+  <tr><td><span class="dot amber"></span> Amber pulse</td><td>Degraded — LLM issue, transcript still flowing</td></tr>
+</table>
+
+<h3>Graph interactions</h3>
+<p>The display supports direct interaction (useful if the operator has access to the projected screen):</p>
+
+<table>
+  <tr><th>Action</th><th>How</th></tr>
+  <tr><td><strong>Drag nodes</strong></td><td>Click and drag to reposition</td></tr>
+  <tr><td><strong>Pin / Unpin</strong></td><td>Right-click &rarr; Pin. Pinned nodes never get automatically removed.</td></tr>
+  <tr><td><strong>Promote</strong></td><td>Right-click &rarr; Promote. Boosts a node's importance score.</td></tr>
+  <tr><td><strong>Rename</strong></td><td>Right-click &rarr; Rename. Fix a label the AI got wrong.</td></tr>
+  <tr><td><strong>Merge</strong></td><td>Right-click &rarr; Merge into... then click the target node. Combines duplicates.</td></tr>
+  <tr><td><strong>Hide</strong></td><td>Right-click &rarr; Hide. Removes a node from the graph.</td></tr>
+</table>
+
+<h3>Keyboard shortcuts</h3>
+<table>
+  <tr><th>Key</th><th>Action</th></tr>
+  <tr><td><kbd>B</kbd></td><td>Toggle big-screen mode (larger fonts, thicker strokes — optimised for projection)</td></tr>
+</table>
+
+<h3>How the graph stays clean</h3>
+<ul>
+  <li><strong>Budget:</strong> Max 24 active nodes. New concepts push out the least important ones.</li>
+  <li><strong>Decay:</strong> Nodes not mentioned for 12 minutes are automatically parked (removed from view but remembered).</li>
+  <li><strong>Reactivation:</strong> Parked concepts come back if mentioned 2+ times within 3 minutes.</li>
+  <li><strong>Scoring:</strong> Each node has an importance score: 45% recency, 35% frequency, 20% connectedness. Pinned nodes get a bonus.</li>
+</ul>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="after-session">
+<h2>After a Session</h2>
+
+<p>Go to <code>/sessions</code> to work with completed sessions. The monitor setup page also has a "Browse past sessions" link.</p>
+
+<h3>Session list</h3>
+<p>Shows all active sessions with topic, date, duration, segment count, and recap status. Click any row to open the detail view.</p>
+
+<h3>Session detail — three tabs</h3>
+
+<table>
+  <tr><th>Tab</th><th>What's there</th></tr>
+  <tr><td><strong>Recap</strong></td><td>AI-generated session recap. If none exists, click "Generate Recap" to create one. See below for what's in a recap.</td></tr>
+  <tr><td><strong>Transcript</strong></td><td>Full transcript with timestamps and STT metadata (detected language, backend, latency per segment).</td></tr>
+  <tr><td><strong>Mind Map</strong></td><td>Graph evolution playback. Step through snapshots to see how the graph developed over time.</td></tr>
+</table>
+
+<h3>Recap structure (v2)</h3>
+<p>The recap is designed to surface insight, not produce meeting minutes:</p>
+
+<table>
+  <tr><th>Section</th><th>What it contains</th></tr>
+  <tr><td><strong>Elevator Pitch</strong></td><td>2-3 sentences a participant could say out loud about what the session means. Written in the session's language.</td></tr>
+  <tr><td><strong>Three Things to Retain</strong></td><td>The three ideas that should survive the week. Forces prioritisation.</td></tr>
+  <tr><td><strong>Non-Obvious Connections</strong></td><td>Links between topics that participants likely didn't notice. Drawn from the knowledge graph edges. 0-3 items — never fabricated.</td></tr>
+  <tr><td><strong>Contradictions</strong></td><td>Where the discussion diverged from stated positions. Often empty — that's fine.</td></tr>
+  <tr><td><strong>Summary</strong></td><td>One paragraph reference summary (collapsed by default).</td></tr>
+  <tr><td><strong>Decisions / Open Threads</strong></td><td>What was decided and what's still unresolved (collapsed by default).</td></tr>
+</table>
+
+<div class="callout">
+  <strong>Tip:</strong> The recap is generated in the session's language. If the session was in Norwegian, the recap will be in Norwegian.
+</div>
+
+<h3>Transcript cleaning</h3>
+<p>The "Clean Transcript" button in the transcript tab sends the raw STT output through the LLM to fix:</p>
+<ul>
+  <li>Misspelled words and garbled text</li>
+  <li>Missing punctuation and capitalisation</li>
+  <li>STT hallucination loops (repeated words/phrases)</li>
+  <li>Inconsistent name spellings</li>
+</ul>
+<p>After cleaning, changed segments are highlighted with a green border. Toggle "Show raw STT" to compare. The recap uses cleaned text when available.</p>
+
+<h3>Exporting</h3>
+<p>Each tab has its own export options:</p>
+
+<table>
+  <tr><th>Tab</th><th>Export options</th></tr>
+  <tr><td><strong>Recap</strong></td><td>Export PDF, Copy Markdown, Download .md</td></tr>
+  <tr><td><strong>Transcript</strong></td><td>Export PDF, Copy Markdown, Download .md (respects clean/raw toggle)</td></tr>
+</table>
+
+<p>PDF export opens a print-ready document in a new tab. Click "Save as PDF" or use <kbd>Ctrl</kbd>+<kbd>P</kbd> / <kbd>Cmd</kbd>+<kbd>P</kbd>.</p>
+
+<h3>Cross-session synthesis</h3>
+<p>When you've run multiple sessions in a day (e.g. separate agenda items), you can synthesise across them:</p>
+<ol>
+  <li>Select 2+ sessions using the checkboxes in the session list</li>
+  <li>Click <strong>Synthesize</strong> in the action bar</li>
+  <li>Each session must have a recap generated first (the synthesis uses recaps + knowledge graphs as input)</li>
+  <li>The result shows connections across sessions, how ideas evolved, and tensions between sessions</li>
+</ol>
+
+<h3>Archiving</h3>
+<p>Select sessions and click <strong>Archive</strong> to move them out of the active list. Archived sessions are accessible at <code>/sessions/archive</code> and can be unarchived at any time. No data is deleted.</p>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="troubleshooting">
+<h2>Troubleshooting</h2>
+
+<h3>No audio in the monitor</h3>
+<ul>
+  <li>Check browser permissions — the monitor needs microphone access</li>
+  <li>Make sure you selected a device in the audio device picker</li>
+  <li>Try a different browser (Chrome recommended)</li>
+  <li>The level meter should move when you speak. If it doesn't, the device isn't capturing.</li>
+</ul>
+
+<h3>Transcript appears but graph doesn't update</h3>
+<ul>
+  <li>Check the LLM status dot in the monitor — amber means the circuit breaker is active</li>
+  <li>The graph needs at least 50 characters of new text and waits 20 seconds between analyses</li>
+  <li>Try switching to Gemini Flash (cloud) as LLM fallback in the monitor</li>
+  <li>If latency is consistently over 40s, notify the system administrator</li>
+</ul>
+
+<h3>STT quality is poor</h3>
+<ul>
+  <li>Set the language explicitly rather than using auto-detect</li>
+  <li>Switch STT backends in the monitor — different backends handle different languages better</li>
+  <li>Use the "Clean Transcript" feature post-session to fix errors</li>
+</ul>
+
+<h3>High LLM latency</h3>
+<ul>
+  <li>Switch to Gemini Flash (cloud) as LLM fallback — use the LLM picker in the monitor</li>
+  <li>If the problem persists, contact the system administrator — the server may need services rebalanced</li>
+</ul>
+
+<h3>Display shows "Waiting for session"</h3>
+<ul>
+  <li>The display is passive — it waits for the monitor to start a session</li>
+  <li>Check that the monitor is connected (WS dot should be green)</li>
+  <li>If you refresh the display during a session, it will auto-reconnect and restore the graph</li>
+</ul>
+
+<h3>WebSocket disconnects</h3>
+<ul>
+  <li>Both monitor and display auto-reconnect automatically</li>
+  <li>The display will restore the current session state on reconnect</li>
+  <li>If disconnects persist, check your network connection or contact the system administrator</li>
+</ul>
+
+<h3>Data management</h3>
+<p>To keep the session list clean, use the <strong>Archive</strong> feature to move old sessions out of the active list. Archived sessions can be unarchived at any time. If you need a full database reset, contact the system administrator.</p>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="urls">
+<h2>URLs</h2>
+
+<div class="card-grid">
+  <div class="doc-card">
+    <div class="card-title">Display</div>
+    <div class="card-body"><code>/</code><br>Audience view — knowledge graph + transcript</div>
+  </div>
+  <div class="doc-card">
+    <div class="card-title">Monitor</div>
+    <div class="card-body"><code>/monitor</code><br>Operator control surface</div>
+  </div>
+  <div class="doc-card">
+    <div class="card-title">Sessions</div>
+    <div class="card-body"><code>/sessions</code><br>Post-session recap, export, synthesis</div>
+  </div>
+  <div class="doc-card">
+    <div class="card-title">Archive</div>
+    <div class="card-body"><code>/sessions/archive</code><br>Archived sessions</div>
+  </div>
+  <div class="doc-card">
+    <div class="card-title">This Guide</div>
+    <div class="card-body"><code>/doc</code><br>Operator documentation</div>
+  </div>
+</div>
+
+<p>All views are accessible via <code>livemind.btrbot.com</code> through the Cloudflare tunnel.</p>
+</section>
+
+</div>
+</body>
+</html>

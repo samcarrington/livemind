@@ -7,6 +7,7 @@ Status: Draft for implementation
 ## 1. Objective
 
 Make the current prototype production-grade for live 2-3 hour meetings:
+
 - Stable operation for full meeting duration.
 - Readable and actionable mind map throughout.
 - Recoverable sessions after browser refresh or brief network loss.
@@ -32,6 +33,7 @@ Make the current prototype production-grade for live 2-3 hour meetings:
 ## 4. Target Architecture
 
 Components:
+
 - `stt-worker` (Python): audio capture + STT + segment emit.
 - `api-server` (FastAPI): sessions, auth, websocket fanout, persistence, LLM proxy.
 - `analysis-worker`: queued LLM analysis + deterministic graph reconciler.
@@ -39,6 +41,7 @@ Components:
 - `frontend` (existing HTML/JS): visualization + controls; consumes server stream.
 
 Data flow:
+
 1. STT emits transcript segments with sequence numbers.
 2. API stores segments and pushes them over websocket.
 3. Analysis worker consumes latest unsent range and updates graph deltas.
@@ -56,16 +59,19 @@ Data flow:
 ## 6. Readability and Usability Requirements
 
 Hard budgets:
+
 - Active map: max 24 nodes, max 30 edges.
 - Label format: 2-4 words, title case.
 - Edge label: 1-2 words.
 
 Aging and lifecycle:
+
 - Node state: `active`, `parked`, `archived`, `hidden`.
 - Decay to `parked` after 12 minutes without supporting mentions.
 - Reactivate if mentioned >= 2 times within 3 minutes.
 
 Scoring:
+
 - Importance score:
   - `0.45 * recency`
   - `0.35 * mention_frequency`
@@ -74,11 +80,13 @@ Scoring:
 - Edge weight score uses co-mention recency and relation confidence.
 
 UX controls:
+
 - `Pin`, `Merge`, `Hide`, `Rename`, `Promote`.
 - Dedicated lanes for `Decision`, `Action`, `Open Question`.
 - Filter by time window/category/speaker and search-by-concept.
 
 Layout stability:
+
 - Category anchors fixed in soft zones.
 - Per-update position clamp (for example 30px max movement).
 - Avoid global re-layout on small deltas to reduce visual thrash.
@@ -86,11 +94,13 @@ Layout stability:
 ## 7. Analysis Pipeline (Incremental, not full replay)
 
 Use three context layers per analysis job:
+
 1. Fresh transcript window (for example last 2-4 minutes).
 2. Rolling micro-summary blocks.
 3. Current canonical graph state (IDs, scores, states).
 
 Rules:
+
 - LLM proposes graph changes only.
 - Deterministic reconciler enforces limits, ID stability, and decay policy.
 - If queue is backed up, coalesce stale jobs and process only newest range.
@@ -117,6 +127,7 @@ Rules:
 ## 10. Observability
 
 Core metrics:
+
 - `stt_latency_ms` (first partial, final segment)
 - `analysis_latency_ms`
 - `analysis_queue_depth`
@@ -127,6 +138,7 @@ Core metrics:
 - `frontend_fps_avg`
 
 Alert examples:
+
 - p95 analysis latency > 8s for 5 min.
 - queue depth > 3 for 2 min.
 - reconnect count > 5 per 10 min.
@@ -137,6 +149,7 @@ Alert examples:
 ### 11.1 Baseline issue in current implementation
 
 Current STT settings use:
+
 - `CHUNK_SECONDS = 8`
 - `OVERLAP_SECONDS = 1`
 - 1s polling cadence
@@ -151,36 +164,44 @@ This naturally produces multi-second latency bursts and can approach ~8-9s befor
 ### 11.3 Quick wins (high impact, low risk)
 
 1. Reduce chunk size and stride:
+
 - Chunk: 2.0s (from 8.0s)
 - Stride: 0.5-1.0s
 - Keep overlap/dedup logic.
 
-2. Emit partial hypotheses:
+1. Emit partial hypotheses:
+
 - Stream decoder output every ~200-300ms.
 - Mark messages as `partial` then `final`.
 
-3. Replace polling loop with event-triggered processing:
+1. Replace polling loop with event-triggered processing:
+
 - Trigger decode when stride-sized audio arrives.
 - Remove fixed 1s wait loop where possible.
 
-4. Lower capture blocksize:
+1. Lower capture blocksize:
+
 - Use ~20-40ms audio callbacks instead of ~100ms.
 
 ### 11.4 Medium-term optimizations
 
 1. Voice activity detection (VAD):
+
 - Skip silence windows.
 - Flush decode immediately at speech end boundaries.
 
-2. Faster resampling path:
+1. Faster resampling path:
+
 - Avoid heavy per-callback interpolation overhead.
 - Use a streaming resampler designed for real-time audio.
 
-3. Model/runtime tuning:
+1. Model/runtime tuning:
+
 - Keep model warm and pinned to dedicated worker thread/process.
 - Evaluate quantized checkpoints (`q8`, then `q4` if quality acceptable).
 
-4. Double-buffer pipeline:
+1. Double-buffer pipeline:
+
 - Capture, decode, and websocket send in separate bounded queues.
 - Prevent decode stalls from blocking capture.
 
@@ -193,6 +214,7 @@ This naturally produces multi-second latency bursts and can approach ~8-9s befor
 ## 12. API Contract Summary
 
 REST:
+
 - `POST /v1/sessions`
 - `POST /v1/sessions/{id}/segments`
 - `POST /v1/sessions/{id}/actions`
@@ -200,6 +222,7 @@ REST:
 - `POST /v1/sessions/{id}/end`
 
 Websocket events:
+
 - `transcript.segment` (`partial`/`final`)
 - `graph.delta`
 - `graph.snapshot`
@@ -209,12 +232,15 @@ Websocket events:
 ## 13. Implementation Plan (10 days)
 
 Day 1:
+
 - FastAPI scaffold + session lifecycle + secure key config.
 
 Day 2:
+
 - DB schema + migrations + repositories.
 
 Day 3:
+
 - Transcript ingest endpoint + websocket stream + heartbeat.
 - STT quick-win pass:
   - reduce chunking to low-latency defaults (target: 2s chunk, 0.5-1.0s stride)
@@ -222,31 +248,38 @@ Day 3:
   - switch decode trigger from fixed polling to event-driven buffering
 
 Day 4:
+
 - Server-side LLM proxy + queue + retries/backoff.
 
 Day 5:
+
 - Incremental context builder + periodic snapshots.
 - STT streaming improvements:
   - emit `partial` transcript events every ~200-300ms
   - emit `final` events with boundary dedup/cleanup
 
 Day 6:
+
 - Deterministic reconciler + readability budgets + decay lifecycle.
 - STT quality/speed tuning:
   - add VAD-based silence skipping and end-of-speech flush
   - evaluate quantized runtime options (`q8`, optional `q4`) against quality guardrails
 
 Day 7:
+
 - Frontend protocol migration + restore on reload.
 
 Day 8:
+
 - User controls (`pin`, `merge`, `hide`, `rename`, `promote`) + parked panel.
 
 Day 9:
+
 - 3-hour transcript replay soak tests + metrics dashboards.
 - Validate STT latency targets (partial and final p95) using replay and live dry run.
 
 Day 10:
+
 - Hardening, runbook, release checklist, go/no-go review.
 
 ## 14. Definition of Done

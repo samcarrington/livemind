@@ -1,0 +1,17 @@
+[project]
+name = "livemind"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "aiohttp",
+    "aiosqlite",
+    "numpy",
+    "requests",
+]
+
+[project.optional-dependencies]
+# Local speech-to-text server (stt_server.py). Pick one:
+stt = ["faster-whisper", "tokenizers>=0.21"]                                   # CPU / CUDA
+stt-mlx = ["mlx-whisper; sys_platform == 'darwin' and platform_machine == 'arm64'"]  # Apple Silicon

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "fastapi-python": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "fastapi-python/SKILL.md",
+      "computedHash": "1d7346210a6690d2faeb089f074c0dc20a7056c2c83ac1062a11c1b73158be72"
+    },
+    "python-anti-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-anti-patterns/SKILL.md",
+      "computedHash": "5a6d1c378bbfc859a12fe08dda1e2b856af725ff3cc46ee38cea8bd03736abdb"
+    },
+    "python-patterns": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/python-patterns/SKILL.md",
+      "computedHash": "3ce7d51e18d3e2fa79635e569e73a8d269bc484ff1095fae7c414543f023e95e"
+    }
+  }
+}

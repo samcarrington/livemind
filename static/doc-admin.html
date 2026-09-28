@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveMind — System Administration</title>
+<link rel="icon" type="image/svg+xml" href="/livemind-favicon.svg">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #080814;
+  --panel: #0c0d18;
+  --card: rgba(255,255,255,0.04);
+  --bdr: rgba(255,255,255,0.08);
+  --txt: #d4d6e0;
+  --dim: #7a7d94;
+  --bright: #f2f2f6;
+  --green: #34d399;
+  --purple: #a78bfa;
+  --rose: #fb7185;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.wrap { max-width: 740px; margin: 0 auto; padding: 48px 32px 120px; }
+
+.doc-header { margin-bottom: 48px; }
+.doc-header h1 { font-size: 32px; font-weight: 300; color: var(--bright); margin: 12px 0 8px; }
+.doc-header .subtitle { font-size: 15px; color: var(--dim); }
+
+.doc-nav {
+  position: sticky; top: 0;
+  background: rgba(8,8,20,0.92); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--bdr);
+  padding: 12px 0; margin: 0 -32px 40px; padding-left: 32px; padding-right: 32px;
+  z-index: 50; display: flex; flex-wrap: wrap; gap: 6px;
+}
+.doc-nav a {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--dim); text-decoration: none;
+  padding: 6px 14px; border: 1px solid var(--bdr); border-radius: 100px; transition: all .2s;
+}
+.doc-nav a:hover { border-color: var(--green); color: var(--green); }
+
+section { margin-bottom: 48px; }
+h2 {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;
+  letter-spacing: 3px; text-transform: uppercase; color: var(--green);
+  margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--bdr);
+}
+h3 { font-size: 17px; font-weight: 500; color: var(--bright); margin: 24px 0 10px; }
+p { margin-bottom: 12px; }
+ul, ol { margin: 8px 0 16px 20px; }
+li { margin-bottom: 6px; }
+code {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  background: rgba(255,255,255,0.04); padding: 2px 7px; border-radius: 4px; color: var(--purple);
+}
+pre {
+  background: var(--panel); border: 1px solid var(--bdr); border-radius: 8px;
+  padding: 16px 18px; margin: 12px 0 18px; overflow-x: auto;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.6; color: var(--txt);
+}
+table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 14px; }
+th {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim);
+  text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--bdr);
+}
+td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top; }
+.callout {
+  border-left: 3px solid var(--green); padding: 12px 16px; margin: 12px 0 18px;
+  background: rgba(52,211,153,0.04); border-radius: 0 8px 8px 0; font-size: 14px;
+}
+.callout.warn { border-color: var(--amber); background: rgba(251,191,36,0.04); }
+.callout strong { color: var(--bright); }
+a { color: var(--green); text-decoration: none; }
+a:hover { text-decoration: underline; }
+kbd {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px; padding: 2px 8px; color: var(--bright);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<a href="/sessions" style="display:inline-flex;align-items:center;gap:6px;margin-bottom:28px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:1px solid var(--bdr);border-radius:4px;padding:5px 12px;transition:color .2s,border-color .2s;" onmouseover="this.style.color='var(--txt)';this.style.borderColor='rgba(255,255,255,0.15)'" onmouseout="this.style.color='var(--dim)';this.style.borderColor='var(--bdr)'">← Sessions</a>
+
+<div class="doc-header">
+  <img src="/livemind-logo-clean.svg" alt="LiveMind" style="width:200px;opacity:0.85;">
+  <h1>System Administration</h1>
+  <div class="subtitle">Server management, infrastructure, and the god view</div>
+</div>
+
+<nav class="doc-nav">
+  <a href="#server">Server</a>
+  <a href="#infrastructure">Infrastructure</a>
+  <a href="#god-view">God View</a>
+  <a href="#gpu">GPU &amp; Memory</a>
+  <a href="#stt-backends">STT Backends</a>
+  <a href="#database">Database</a>
+  <a href="#networking">Networking</a>
+  <a href="#recovery">Recovery</a>
+</nav>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="server">
+<h2>Server</h2>
+
+<h3>Starting the server</h3>
+<pre>
+source .venv/bin/activate
+python app.py --host 0.0.0.0 --port 8765</pre>
+
+<p>The server starts FastAPI with Uvicorn. It initialises the SQLite database, starts background tasks (transcript broadcast loop, periodic snapshot loop), and begins accepting WebSocket connections.</p>
+
+<h3>Environment variables</h3>
+<table>
+  <tr><th>Variable</th><th>Purpose</th><th>Default</th></tr>
+  <tr><td><code>HUGIN_BASE_URL</code></td><td>Ollama API endpoint</td><td><code>https://munin.btrbot.com</code></td></tr>
+  <tr><td><code>HUGIN_CF_ID</code></td><td>Cloudflare Access client ID (for Ollama)</td><td>empty</td></tr>
+  <tr><td><code>HUGIN_CF_SECRET</code></td><td>Cloudflare Access client secret</td><td>empty</td></tr>
+  <tr><td><code>GEMINI_API_KEY</code></td><td>Google Gemini API key</td><td>empty</td></tr>
+  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Anthropic Claude API key</td><td>empty</td></tr>
+</table>
+
+<p>Set these in a <code>.env</code> file in the project root. The server loads it on startup.</p>
+
+<h3>Stopping the server</h3>
+<p>Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal. Active sessions are NOT auto-ended — the session data is preserved and will be restored when clients reconnect after restart.</p>
+
+<div class="callout warn">
+  <strong>Warning:</strong> Restarting the server during an active session will interrupt transcription and LLM analysis. Clients will auto-reconnect but there will be a gap in the transcript.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="infrastructure">
+<h2>Infrastructure</h2>
+
+<h3>Hardware: NVIDIA DGX Spark (hugin.local)</h3>
+<ul>
+  <li>GPU: NVIDIA GB10 (unified memory shared between CPU and GPU)</li>
+  <li>CPU: 20 cores</li>
+  <li>RAM: 119 GB (unified with GPU)</li>
+</ul>
+
+<h3>Services</h3>
+<table>
+  <tr><th>Service</th><th>Port</th><th>Type</th><th>GPU Memory</th></tr>
+  <tr><td>LiveMind server (app.py)</td><td>8765</td><td>Python process</td><td>—</td></tr>
+  <tr><td>faster-whisper STT</td><td>8766</td><td>Python process</td><td>~2.2 GB</td></tr>
+  <tr><td>Parakeet TDT</td><td>8010</td><td>Docker container</td><td>~2.9 GB</td></tr>
+  <tr><td>Canary 1b v2</td><td>8011</td><td>Docker container</td><td>~10 GB</td></tr>
+  <tr><td>Ollama</td><td>11434</td><td>System service</td><td>~36 GB (gemma4:26b)</td></tr>
+</table>
+
+<p>Total GPU memory when all services loaded: ~51 GB. On the unified memory architecture, all services compete for bandwidth. Keep unused backends stopped during events.</p>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="god-view">
+<h2>God View</h2>
+
+<p>The system monitor at <code>/admin</code> provides a read-only view of everything happening in the system. It is designed for the system administrator who needs to observe without interfering with active sessions.</p>
+
+<h3>What it shows</h3>
+
+<p><strong>Header:</strong> Active session ID and topic, session duration, connected client count, server uptime, WebSocket health.</p>
+
+<p><strong>Left column — Pipeline health:</strong></p>
+<ul>
+  <li>STT: active backend, detected language, last/avg latency, chunks processed and skipped</li>
+  <li>LLM: active provider and model, last/avg latency, call count and errors, JSON parse success rate</li>
+  <li>Circuit breaker: state (closed/half-open/open), consecutive failure count</li>
+  <li>Token usage: cumulative input/output tokens, session cost</li>
+</ul>
+
+<p><strong>Center column — Live activity:</strong></p>
+<ul>
+  <li>Knowledge graph mirror — real-time replica of the audience display</li>
+  <li>Node count vs 24-node budget, churn rates (additions/removals per minute)</li>
+  <li>Live transcript feed</li>
+</ul>
+
+<p><strong>Right column — System resources:</strong></p>
+<ul>
+  <li>STT backend health (all three, with online/offline indicators, refreshed every 30s)</li>
+  <li>WebSocket clients and reconnect count</li>
+  <li>Transcript queue depth, display FPS, audio RMS, VAD state</li>
+  <li>Last STT output, last LLM error</li>
+  <li>Today's session list</li>
+</ul>
+
+<h3>Key things to watch</h3>
+<table>
+  <tr><th>Metric</th><th>Healthy</th><th>Concern</th></tr>
+  <tr><td>STT Latency</td><td>&lt; 2s</td><td>&gt; 5s: STT backend struggling</td></tr>
+  <tr><td>LLM Latency</td><td>&lt; 20s</td><td>&gt; 40s: GPU memory pressure</td></tr>
+  <tr><td>Circuit Breaker</td><td>closed</td><td>open: LLM failing, auto-recovering</td></tr>
+  <tr><td>Parse OK / Fail</td><td>Mostly OK</td><td>High fail rate: LLM producing garbage</td></tr>
+  <tr><td>Transcript Queue</td><td>0</td><td>&gt; 5: processing can't keep up</td></tr>
+  <tr><td>Display FPS</td><td>&gt; 30</td><td>&lt; 15: display browser struggling</td></tr>
+</table>
+
+<div class="callout">
+  <strong>Note:</strong> The god view is purely read-only. It connects as a regular WebSocket client and receives the same broadcasts as the display. It cannot affect running sessions.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="gpu">
+<h2>GPU &amp; Memory Management</h2>
+
+<h3>Checking GPU status</h3>
+<pre>nvidia-smi</pre>
+
+<p>Shows GPU utilisation, temperature, and per-process memory usage. On the DGX Spark, all services share unified memory — there's no separate GPU VRAM.</p>
+
+<h3>Checking Ollama</h3>
+<pre>
+# Currently loaded models
+curl -s localhost:11434/api/ps | python3 -m json.tool
+
+# Available models
+curl -s localhost:11434/api/tags | python3 -m json.tool</pre>
+
+<h3>Memory pressure</h3>
+<p>If LLM latency is high (&gt;40s with a full graph), GPU memory is likely saturated. Actions:</p>
+<ol>
+  <li>Stop unused STT backends (see below)</li>
+  <li>Check if multiple Ollama models are loaded (each takes 30-40 GB)</li>
+  <li>Check swap usage: <code>free -h</code> — if swap is &gt;5 GB used, memory is tight</li>
+</ol>
+
+<h3>System overview</h3>
+<pre>
+# CPU load and memory
+uptime && free -h
+
+# Top memory consumers
+ps aux --sort=-%mem | head -10
+
+# Ollama process
+ps -o pid,lstart,etime,rss,cmd -p $(pgrep ollama)</pre>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="stt-backends">
+<h2>STT Backends</h2>
+
+<h3>faster-whisper (port 8766)</h3>
+<p>Native Python process. 99 languages. The default backend. Always running.</p>
+
+<h3>Parakeet TDT (port 8010)</h3>
+<p>Docker container. 25 European languages. Highest throughput.</p>
+<pre>
+docker start parakeet-asr    # Start
+docker stop parakeet-asr     # Stop (frees ~3 GB GPU)
+docker logs parakeet-asr     # Check logs</pre>
+
+<h3>Canary 1b v2 (port 8011)</h3>
+<p>Docker container. 25 European languages. Best accuracy but poor Norwegian auto-detection.</p>
+<pre>
+docker start canary-asr      # Start
+docker stop canary-asr       # Stop (frees ~10 GB GPU)
+docker logs canary-asr       # Check logs</pre>
+
+<div class="callout warn">
+  <strong>Known issue:</strong> Canary's auto-language-detection fails on Norwegian and struggles even with manual language setting. For Norwegian sessions, use faster-whisper.
+</div>
+
+<h3>Health check</h3>
+<p>The server checks backend health via the <code>/v1/stt/backends</code> endpoint. The god view shows online/offline status for each backend, refreshed every 30 seconds.</p>
+
+<h3>Recommended configuration for events</h3>
+<p>Stop Canary and Parakeet before events to maximise GPU memory for Ollama:</p>
+<pre>docker stop canary-asr parakeet-asr</pre>
+<p>This frees ~13 GB of GPU memory and should bring LLM latency back under 20s.</p>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="database">
+<h2>Database</h2>
+
+<p>All data is in <code>livemind.db</code> (SQLite with WAL mode) in the project directory.</p>
+
+<h3>Tables</h3>
+<table>
+  <tr><th>Table</th><th>Contents</th></tr>
+  <tr><td><code>sessions</code></td><td>Session ID, topic, timestamps, summary, archived flag</td></tr>
+  <tr><td><code>segments</code></td><td>Every transcript chunk with STT metadata (language, backend, latency, cleaned text)</td></tr>
+  <tr><td><code>snapshots</code></td><td>Full graph state at points in time (periodic, analysis, end)</td></tr>
+  <tr><td><code>actions</code></td><td>User interactions (pin, rename, merge, etc.)</td></tr>
+  <tr><td><code>recaps</code></td><td>AI-generated session recaps</td></tr>
+  <tr><td><code>synthesis_recaps</code></td><td>Cross-session synthesis recaps</td></tr>
+</table>
+
+<h3>Querying directly</h3>
+<pre>
+sqlite3 livemind.db
+
+-- List sessions
+SELECT id, topic, created_at, segment_count FROM sessions ORDER BY created_at DESC;
+
+-- Check STT language detection for a session
+SELECT text, stt_language, stt_backend, stt_latency_ms
+FROM segments WHERE session_id = 'XXXX' AND is_partial = 0 ORDER BY seq;
+
+-- Check recap
+SELECT recap_json FROM recaps WHERE session_id = 'XXXX';</pre>
+
+<h3>Full reset</h3>
+<p>Stop the server, delete <code>livemind.db</code>, restart. A new database is created automatically. Prefer using the archive feature in the UI for non-destructive cleanup.</p>
+
+<h3>Backup</h3>
+<pre>cp livemind.db livemind-backup-$(date +%Y%m%d).db</pre>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="networking">
+<h2>Networking</h2>
+
+<h3>Cloudflare Tunnel</h3>
+<p>LiveMind is accessible externally via <code>livemind.btrbot.com</code>, routed through a Cloudflare Tunnel to <code>localhost:8765</code>. Cloudflare Access provides service token authentication.</p>
+
+<h3>Related services</h3>
+<table>
+  <tr><th>URL</th><th>Service</th></tr>
+  <tr><td><code>livemind.btrbot.com</code></td><td>LiveMind (this system)</td></tr>
+  <tr><td><code>munin.btrbot.com</code></td><td>Ollama API</td></tr>
+  <tr><td><code>stt.btrbot.com</code></td><td>faster-whisper STT</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="recovery">
+<h2>Recovery Procedures</h2>
+
+<h3>Server crash during session</h3>
+<ol>
+  <li>Restart the server: <code>python app.py --host 0.0.0.0 --port 8765</code></li>
+  <li>All clients (display, monitor) auto-reconnect</li>
+  <li>The display will receive the latest snapshot and restore the graph</li>
+  <li>There will be a gap in the transcript for the downtime period</li>
+  <li>The session is NOT auto-ended — it continues from where it left off</li>
+</ol>
+
+<h3>Ollama not responding</h3>
+<ol>
+  <li>Check: <code>curl -s localhost:11434/api/ps | python3 -m json.tool</code></li>
+  <li>Restart if needed: <code>sudo systemctl restart ollama</code></li>
+  <li>The model takes ~30s to reload into GPU memory on first request</li>
+  <li>The circuit breaker will auto-recover once Ollama responds</li>
+</ol>
+
+<h3>STT backend down</h3>
+<ol>
+  <li>Check: <code>docker ps | grep asr</code></li>
+  <li>Restart: <code>docker start canary-asr</code> or <code>docker start parakeet-asr</code></li>
+  <li>Or switch to a running backend via the monitor panel</li>
+</ol>
+
+<h3>High swap usage</h3>
+<pre>
+free -h           # Check swap
+docker stop canary-asr parakeet-asr   # Free GPU memory
+# If still high, consider restarting Ollama to release cached models</pre>
+
+<h3>Complete system restart</h3>
+<ol>
+  <li>Stop LiveMind: <kbd>Ctrl</kbd>+<kbd>C</kbd></li>
+  <li>Stop optional backends: <code>docker stop canary-asr parakeet-asr</code></li>
+  <li>Restart Ollama: <code>sudo systemctl restart ollama</code></li>
+  <li>Start LiveMind: <code>source .venv/bin/activate && python app.py --host 0.0.0.0 --port 8765</code></li>
+  <li>Open <code>/monitor</code> and start a new session</li>
+</ol>
+</section>
+
+</div>
+</body>
+</html>

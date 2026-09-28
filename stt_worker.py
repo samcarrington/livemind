@@ -1,332 +1,272 @@
 """
-STT Worker — Audio capture + VAD + Kyutai STT inference.
-Extracted from stt_server.py. Runs as background threads, pushes
-transcript messages into a shared queue consumed by app.py.
+STT Worker — Audio transcription dispatch.
+Receives PCM audio from the browser (via WebSocket), resamples to 16kHz,
+and dispatches to the active STT backend:
+  - remote: faster-whisper at localhost:8766
+  - parakeet: Parakeet TDT at localhost:8010
+  - canary: Canary at localhost:8011
+All backends use the same /v1/transcribe raw PCM endpoint with query params.
 """
 
-import time, threading, queue, sys
+import time, threading, os
 import numpy as np
 
-SAMPLE_RATE = 24000
-CHANNELS = 1
-CHUNK_SECONDS = 2
-MIN_RMS = 0.01
+SAMPLE_RATE = 16000  # All STT backends expect 16kHz
+
+# ─── STT backend config (mutable at runtime) ───
+_active_stt = {
+    "backend": "remote",                            # "remote" | "parakeet" | "canary"
+    "remote_url": "http://localhost:8766",        # faster-whisper
+    "parakeet_url": "http://localhost:8010",      # Parakeet TDT
+    "canary_url": "http://localhost:8011",        # Canary
+    "language": "",                               # ISO 639-1, empty = auto-detect
+}
+_active_stt_lock = threading.Lock()
+
+# Rolling context for Whisper prompt conditioning (last N chars of transcript)
+_transcript_context = {"text": ""}
+_transcript_context_lock = threading.Lock()
+CONTEXT_MAX_CHARS = 200
+
+# Known Whisper hallucination patterns (exact matches after stripping)
+_WHISPER_HALLUCINATIONS = {
+    "", ".", "..", "...", "thank you.", "thank you", "thanks.", "thanks",
+    "thanks for watching.", "thanks for watching", "thank you for watching.",
+    "thank you for watching", "subscribe.", "subscribe",
+    "like and subscribe.", "please subscribe.", "bye.", "bye",
+    "you", "okay.", "okay", "ok.", "so.",
+    "the end.", "the end", "subtitles by the amara.org community",
+    "subs by www.teletext.ch",
+}
+
+# Previous result for deduplication
+_prev_result = {"text": "", "time": 0.0}
 
 
-class VAD:
-    """Energy-based voice activity detector with hysteresis."""
+def _clean_whisper_output(text: str) -> str:
+    """Filter hallucinations and clean up Whisper output. Returns empty string if hallucinated."""
+    stripped = text.strip()
+    if not stripped:
+        return ""
 
-    def __init__(self, alpha=0.3, onset_threshold=0.02, offset_threshold=0.008,
-                 onset_frames=3, offset_frames=15):
-        self.alpha = alpha
-        self.onset_threshold = onset_threshold
-        self.offset_threshold = offset_threshold
-        self.onset_frames = onset_frames      # ~90ms at 30ms blocks
-        self.offset_frames = offset_frames    # ~450ms
-        self.smoothed_rms = 0.0
-        self.is_speaking = False
-        self._onset_count = 0
-        self._offset_count = 0
+    # Exact match against known hallucinations
+    if stripped.lower().rstrip(".!,") in _WHISPER_HALLUCINATIONS or stripped.lower() in _WHISPER_HALLUCINATIONS:
+        print(f"  [Filter] hallucination dropped: '{stripped}'")
+        return ""
 
-    def process_frame(self, rms: float) -> str | None:
-        """Update with a new frame RMS. Returns 'speech_start', 'speech_end', or None."""
-        self.smoothed_rms = self.alpha * rms + (1 - self.alpha) * self.smoothed_rms
+    # Repetition detection — if the same short phrase repeats 3+ times, it's looping
+    words = stripped.split()
+    if len(words) >= 6:
+        chunk = " ".join(words[:2]).lower()
+        count = stripped.lower().count(chunk)
+        if count >= 3:
+            print(f"  [Filter] repetition loop dropped: '{stripped[:80]}...'")
+            return ""
 
-        if not self.is_speaking:
-            if self.smoothed_rms > self.onset_threshold:
-                self._onset_count += 1
-                if self._onset_count >= self.onset_frames:
-                    self.is_speaking = True
-                    self._onset_count = 0
-                    self._offset_count = 0
-                    return "speech_start"
-            else:
-                self._onset_count = 0
-        else:
-            if self.smoothed_rms < self.offset_threshold:
-                self._offset_count += 1
-                if self._offset_count >= self.offset_frames:
-                    self.is_speaking = False
-                    self._offset_count = 0
-                    self._onset_count = 0
-                    return "speech_end"
-            else:
-                self._offset_count = 0
+    return stripped
 
+
+def _update_context(text: str):
+    """Append text to rolling context for Whisper prompt conditioning."""
+    with _transcript_context_lock:
+        _transcript_context["text"] = (_transcript_context["text"] + " " + text).strip()
+        if len(_transcript_context["text"]) > CONTEXT_MAX_CHARS:
+            _transcript_context["text"] = _transcript_context["text"][-CONTEXT_MAX_CHARS:]
+
+
+def _get_context() -> str:
+    """Get rolling context for initial_prompt conditioning."""
+    with _transcript_context_lock:
+        return _transcript_context["text"]
+
+
+def _is_duplicate(text: str) -> bool:
+    """Check if this is a duplicate of the previous result."""
+    now = time.time()
+    if text == _prev_result["text"] and (now - _prev_result["time"]) < 10.0:
+        print(f"  [Filter] duplicate dropped: '{text[:60]}'")
+        return True
+    _prev_result["text"] = text
+    _prev_result["time"] = now
+    return False
+
+
+def configure_stt(backend: str, remote_url: str = "", language: str = ""):
+    """Set the active STT backend. Called from app.py."""
+    with _active_stt_lock:
+        _active_stt["backend"] = backend
+        if remote_url:
+            if backend == "remote":
+                _active_stt["remote_url"] = remote_url
+            elif backend == "parakeet":
+                _active_stt["parakeet_url"] = remote_url
+            elif backend == "canary":
+                _active_stt["canary_url"] = remote_url
+        if language is not None:
+            _active_stt["language"] = language
+
+
+def configure_stt_urls(remote_url: str = "", parakeet_url: str = "", canary_url: str = ""):
+    """Override backend base URLs without changing the active backend."""
+    with _active_stt_lock:
+        if remote_url:
+            _active_stt["remote_url"] = remote_url.rstrip("/")
+        if parakeet_url:
+            _active_stt["parakeet_url"] = parakeet_url.rstrip("/")
+        if canary_url:
+            _active_stt["canary_url"] = canary_url.rstrip("/")
+
+
+def get_stt_config() -> dict:
+    """Return current STT config. Called from app.py."""
+    with _active_stt_lock:
+        return {**_active_stt}
+
+
+def reset_state():
+    """Clear rolling context and dedup caches. Call before replay to avoid cross-contamination."""
+    global _prev_result
+    with _transcript_context_lock:
+        _transcript_context["text"] = ""
+    _prev_result = {"text": "", "time": 0.0}
+
+
+def _resample(audio: np.ndarray, source_rate: int, target_rate: int) -> np.ndarray:
+    """Resample audio from source_rate to target_rate using linear interpolation."""
+    if source_rate == target_rate:
+        return audio
+    ratio = target_rate / source_rate
+    n_out = max(1, int(len(audio) * ratio))
+    return np.interp(
+        np.linspace(0, len(audio) - 1, n_out),
+        np.arange(len(audio)),
+        audio,
+    ).astype(np.float32)
+
+
+def _transcribe_backend(audio_arr: np.ndarray, metrics: dict, metrics_lock,
+                        url: str, label: str) -> dict:
+    """POST raw PCM float32 to /v1/transcribe on any backend. All three servers
+    (faster-whisper, Parakeet, Canary) support this endpoint with the same
+    query-param interface: sample_rate, language, initial_prompt.
+    Returns dict with keys: text, language, latency_ms."""
+    import requests
+    from urllib.parse import urlencode
+
+    with _active_stt_lock:
+        language = _active_stt["language"]
+
+    headers = {"Content-Type": "application/octet-stream"}
+    # Cloudflare Access headers for remote (faster-whisper) backend
+    if label == "Remote":
+        cf_id = os.environ.get("STT_CF_ID") or os.environ.get("HUGIN_CF_ID", "")
+        cf_secret = os.environ.get("STT_CF_SECRET") or os.environ.get("HUGIN_CF_SECRET", "")
+        if cf_id and cf_secret:
+            headers["CF-Access-Client-Id"] = cf_id
+            headers["CF-Access-Client-Secret"] = cf_secret
+
+    params = {"sample_rate": SAMPLE_RATE}
+    if language:
+        params["language"] = language
+    context = _get_context()
+    if context:
+        params["initial_prompt"] = context
+
+    t0 = time.time()
+    resp = requests.post(
+        f"{url}/v1/transcribe?{urlencode(params)}",
+        headers=headers,
+        data=audio_arr.tobytes(),
+        timeout=30,
+        verify=False,
+    )
+    dt = time.time() - t0
+
+    if resp.status_code != 200:
+        print(f"  {label} STT error: {resp.status_code} {resp.text[:200]}")
+        return {"text": "", "language": "", "latency_ms": int(dt * 1000)}
+
+    data = resp.json()
+    raw_text = data.get("text", "").strip()
+    lang = data.get("language", "")
+    proc = data.get("processing_s", 0)
+
+    with metrics_lock:
+        metrics["stt_last_duration"] = dt
+        if proc:
+            metrics["stt_remote_processing_s"] = proc
+        if lang:
+            metrics["stt_language"] = lang
+
+    print(f"  {label} STT ({dt:.1f}s, lang={lang}): '{raw_text}'")
+    return {"text": raw_text, "language": lang, "latency_ms": int(dt * 1000)}
+
+
+# ─── Unified dispatch ───
+
+def transcribe_audio_chunk(
+    audio_data: np.ndarray,
+    source_sample_rate: int,
+    metrics: dict,
+    metrics_lock: threading.Lock,
+) -> dict | None:
+    """
+    Accept a PCM audio chunk, resample to 16kHz, dispatch to active STT backend.
+    Returns dict with keys: text, language, backend, latency_ms, raw_text.
+    Returns None if silence/error/hallucination/duplicate.
+    """
+    # 1. Resample to 16kHz
+    audio_16k = _resample(audio_data, source_sample_rate, SAMPLE_RATE)
+
+    # Skip if too quiet
+    rms = float(np.sqrt(np.mean(audio_16k ** 2)))
+    if rms < 0.005:
+        with metrics_lock:
+            metrics["chunks_skipped_silent"] = metrics.get("chunks_skipped_silent", 0) + 1
         return None
 
-
-def select_input_device(forced=None):
-    """Interactive mic picker. Returns device index."""
-    import sounddevice as sd
-    devices = sd.query_devices()
-    inputs = [(i, d) for i, d in enumerate(devices) if d["max_input_channels"] > 0]
-    if not inputs:
-        print("No input devices found.", file=sys.stderr)
-        sys.exit(1)
-
-    if forced is not None:
-        dev = sd.query_devices(forced, "input")
-        print(f"  Using device {forced}: {dev['name']}\n")
-        return forced
-
-    default_in = sd.default.device[0] if hasattr(sd.default.device, '__len__') else sd.default.device
-    print("Available input devices:\n")
-    for pos, (idx, d) in enumerate(inputs):
-        marker = " *" if idx == default_in else "  "
-        print(f"  [{pos}]{marker} {d['name']}  ({int(d['default_samplerate'])}Hz, {d['max_input_channels']}ch in)")
-    default_pos = next((p for p, (i, _) in enumerate(inputs) if i == default_in), 0)
-
-    if len(inputs) == 1:
-        print(f"\n  Only one input — using [{0}] {inputs[0][1]['name']}\n")
-        return inputs[0][0]
-
-    try:
-        raw = input(f"\nSelect device [{default_pos}]: ").strip()
-        pos = int(raw) if raw else default_pos
-        if 0 <= pos < len(inputs):
-            chosen = inputs[pos][0]
+    # 2. Dispatch to active backend
+    with _active_stt_lock:
+        backend = _active_stt["backend"]
+        if backend == "parakeet":
+            url, label = _active_stt["parakeet_url"], "Parakeet"
+        elif backend == "canary":
+            url, label = _active_stt["canary_url"], "Canary"
         else:
-            print(f"  Invalid, using default.")
-            chosen = inputs[default_pos][0]
-    except (ValueError, EOFError):
-        chosen = inputs[default_pos][0]
-    print()
-    return chosen
+            url, label = _active_stt["remote_url"], "Remote"
 
+    t_e2e = time.time()
 
-def _audio_capture_thread(device_idx, audio_buffer, audio_lock, vad, metrics, metrics_lock, shutdown):
-    """Capture mic audio, resample to 24kHz, feed VAD."""
-    import sounddevice as sd
-    try:
-        dev = sd.query_devices(device_idx, "input")
-        native_rate = int(dev["default_samplerate"])
-        resample_ratio = SAMPLE_RATE / native_rate
-        print(f"  Mic: {dev['name']} ({native_rate}Hz → {SAMPLE_RATE}Hz)")
+    result = _transcribe_backend(audio_16k, metrics, metrics_lock, url, label)
+    raw_text = result["text"]
 
-        rms_report = {"last": 0.0}
+    e2e = time.time() - t_e2e
 
-        def cb(indata, frames, t, status):
-            if status:
-                print(f"  Audio status: {status}", file=sys.stderr)
-            data = indata[:, 0]
-            if native_rate != SAMPLE_RATE:
-                n_out = max(1, int(len(data) * resample_ratio))
-                data = np.interp(
-                    np.linspace(0, len(data) - 1, n_out),
-                    np.arange(len(data)),
-                    data
-                ).astype(np.float32)
-            rms = float(np.sqrt(np.mean(data ** 2)))
-            with metrics_lock:
-                metrics["audio_rms"] = rms
+    # 3. Filter hallucinations, dedup
+    text = _clean_whisper_output(raw_text)
+    if not text:
+        return None
+    if _is_duplicate(text):
+        return None
 
-            # VAD
-            event = vad.process_frame(rms)
-            if event:
-                with metrics_lock:
-                    metrics["vad_state"] = "speaking" if event == "speech_start" else "silent"
+    # 4. Update rolling context
+    _update_context(text)
 
-            now = time.time()
-            if now - rms_report["last"] > 5.0:
-                vad_label = "speaking" if vad.is_speaking else "silent"
-                print(f"  Audio RMS: {rms:.4f} ({vad_label})")
-                rms_report["last"] = now
-            with audio_lock:
-                audio_buffer.extend(data.tolist())
+    # 5. Update metrics
+    with metrics_lock:
+        metrics["chunks_processed"] = metrics.get("chunks_processed", 0) + 1
+        metrics["stt_total_time"] = metrics.get("stt_total_time", 0) + metrics.get("stt_last_duration", 0)
+        cp = metrics["chunks_processed"]
+        metrics["stt_avg_duration"] = metrics["stt_total_time"] / cp if cp else 0
+        metrics["stt_last_text"] = text
+        metrics["stt_e2e_last"] = e2e
+        metrics["stt_e2e_total"] = metrics.get("stt_e2e_total", 0) + e2e
+        metrics["stt_e2e_avg"] = metrics["stt_e2e_total"] / cp if cp else 0
 
-        with sd.InputStream(samplerate=native_rate, channels=CHANNELS,
-                            dtype="float32", callback=cb, device=device_idx,
-                            blocksize=int(native_rate * 0.03)):
-            while not shutdown.is_set():
-                time.sleep(0.1)
-    except Exception as e:
-        print(f"  AUDIO CAPTURE FAILED: {e}", file=sys.stderr)
-        print("  Check: System Settings > Privacy & Security > Microphone > Terminal", file=sys.stderr)
-
-
-def _stt_thread(audio_buffer, audio_lock, vad, transcript_queue, metrics, metrics_lock, shutdown):
-    """Load Kyutai STT model and transcribe chunks from audio_buffer."""
-    print("Loading Kyutai STT model...")
-    try:
-        import json as _json
-        import mlx.core as mx
-        import mlx.nn as nn
-        import rustymimi
-        import sentencepiece
-        from huggingface_hub import hf_hub_download
-        from moshi_mlx import models, utils
-
-        HF_REPO = "kyutai/stt-1b-en_fr-mlx"
-        cfg_path = hf_hub_download(HF_REPO, "config.json")
-        with open(cfg_path) as f:
-            cfg_dict = _json.load(f)
-
-        stt_cfg = cfg_dict.get("stt_config", None)
-        mimi_path  = hf_hub_download(HF_REPO, cfg_dict["mimi_name"])
-        model_path = hf_hub_download(HF_REPO, cfg_dict.get("moshi_name", "model.safetensors"))
-        tok_path   = hf_hub_download(HF_REPO, cfg_dict["tokenizer_name"])
-
-        lm_config = models.LmConfig.from_config_dict(cfg_dict)
-        lm = models.Lm(lm_config)
-        lm.set_dtype(mx.bfloat16)
-        if model_path.endswith(".q8.safetensors"):
-            nn.quantize(lm, bits=8, group_size=64)
-        elif model_path.endswith(".q4.safetensors"):
-            nn.quantize(lm, bits=4, group_size=32)
-        lm.load_weights(model_path, strict=True)
-
-        text_tok = sentencepiece.SentencePieceProcessor(tok_path)
-        n_mimi = max(lm_config.generated_codebooks, lm_config.other_codebooks)
-        audio_tok = rustymimi.Tokenizer(mimi_path, num_codebooks=n_mimi)
-        ct = None
-        lm.warmup(ct)
-        print("Model loaded\n")
-    except Exception as e:
-        import traceback
-        print(f"  MODEL LOAD FAILED: {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
-        return
-
-    chunk_samples = int(SAMPLE_RATE * CHUNK_SECONDS)
-    max_buffer = chunk_samples * 3
-    n = 0
-
-    while not shutdown.is_set():
-        try:
-            with audio_lock:
-                blen = len(audio_buffer)
-            with metrics_lock:
-                metrics["audio_buffer_seconds"] = blen / SAMPLE_RATE
-                metrics["transcript_queue_size"] = transcript_queue.qsize()
-            if blen < chunk_samples:
-                time.sleep(0.1)
-                continue
-
-            # VAD-aware silence skip: if VAD says silent AND buffer isn't overflowing, skip
-            if not vad.is_speaking and blen < max_buffer:
-                with audio_lock:
-                    del audio_buffer[:chunk_samples]
-                with metrics_lock:
-                    metrics["chunks_skipped_silent"] += 1
-                continue
-
-            with audio_lock:
-                if len(audio_buffer) > max_buffer:
-                    skip = len(audio_buffer) - chunk_samples
-                    del audio_buffer[:skip]
-                    print(f"  >>> Skipped {skip/SAMPLE_RATE:.1f}s of audio to catch up")
-                    with metrics_lock:
-                        metrics["chunks_skipped_catchup"] += 1
-                chunk = audio_buffer[:chunk_samples]
-                del audio_buffer[:chunk_samples]
-
-            t_e2e = time.time()
-            arr = np.array(chunk, dtype=np.float32)
-            rms = np.sqrt(np.mean(arr ** 2))
-            n += 1
-            print(f"  Chunk #{n}: RMS={rms:.4f}", end=" ", flush=True)
-            if rms < MIN_RMS:
-                print("(silent, skipped)")
-                with metrics_lock:
-                    metrics["chunks_skipped_silent"] += 1
-                continue
-
-            print("-> running STT...")
-            in_pcms = arr[np.newaxis, :]
-            if stt_cfg is not None:
-                pad_l = int(stt_cfg.get("audio_silence_prefix_seconds", 0.0) * SAMPLE_RATE)
-                pad_r = int((stt_cfg.get("audio_delay_seconds", 0.0) + 1.0) * SAMPLE_RATE)
-                in_pcms = np.pad(in_pcms, [(0, 0), (pad_l, pad_r)])
-
-            lm.warmup(ct)
-            t_tok = time.time()
-            audio_tok = rustymimi.Tokenizer(mimi_path, num_codebooks=n_mimi)
-            tok_ms = (time.time() - t_tok) * 1000
-            with metrics_lock:
-                metrics["tokenizer_recreations"] += 1
-                metrics["tokenizer_last_ms"] = tok_ms
-
-            steps = in_pcms.shape[-1] // 1920
-            gen = models.LmGen(
-                model=lm, max_steps=steps,
-                text_sampler=utils.Sampler(top_k=25, temp=0.0),
-                audio_sampler=utils.Sampler(top_k=250, temp=0.0),
-                cfg_coef=1.0, check=False,
-            )
-
-            PARTIAL_INTERVAL = 4
-
-            t0 = time.time()
-            parts = []
-            for i in range(steps):
-                pcm = in_pcms[:, i * 1920:(i + 1) * 1920]
-                tokens = audio_tok.encode_step(pcm[None, 0:1])
-                tokens = mx.array(tokens).transpose(0, 2, 1)[:, :, :lm_config.other_codebooks]
-                tok_id = gen.step(tokens[0], ct)[0].item()
-                if tok_id not in (0, 3):
-                    parts.append(text_tok.id_to_piece(tok_id).replace("\u2581", " "))
-
-                if (i + 1) % PARTIAL_INTERVAL == 0 and parts:
-                    partial_text = "".join(parts).strip()
-                    if partial_text:
-                        transcript_queue.put({
-                            "type": "partial_transcript",
-                            "text": partial_text,
-                            "timestamp": time.time(),
-                        })
-                        with metrics_lock:
-                            metrics["stt_partials_emitted"] += 1
-
-            result = "".join(parts).strip()
-            dt = time.time() - t0
-            print(f"  STT ({dt:.1f}s): '{result}'")
-
-            e2e = time.time() - t_e2e
-            with metrics_lock:
-                metrics["chunks_processed"] += 1
-                metrics["stt_last_duration"] = dt
-                metrics["stt_total_time"] += dt
-                metrics["stt_avg_duration"] = metrics["stt_total_time"] / metrics["chunks_processed"]
-                metrics["stt_last_text"] = result
-                metrics["stt_e2e_last"] = e2e
-                metrics["stt_e2e_total"] += e2e
-                metrics["stt_e2e_avg"] = metrics["stt_e2e_total"] / metrics["chunks_processed"]
-                if not result:
-                    metrics["stt_empty_results"] += 1
-
-            if result:
-                print(f"  -> sending: {result[:100]}")
-                transcript_queue.put({
-                    "type": "transcript",
-                    "text": result,
-                    "timestamp": time.time(),
-                })
-
-        except Exception as e:
-            import traceback
-            print(f"  STT loop error (continuing): {e}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-            time.sleep(2)
-
-
-def start_stt_pipeline(device_idx, transcript_queue, metrics, metrics_lock):
-    """Spawn audio capture + STT threads. Returns (shutdown_event, vad)."""
-    shutdown = threading.Event()
-    audio_buffer = []
-    audio_lock = threading.Lock()
-    vad = VAD()
-
-    t1 = threading.Thread(
-        target=_audio_capture_thread,
-        args=(device_idx, audio_buffer, audio_lock, vad, metrics, metrics_lock, shutdown),
-        daemon=True,
-    )
-    t2 = threading.Thread(
-        target=_stt_thread,
-        args=(audio_buffer, audio_lock, vad, transcript_queue, metrics, metrics_lock, shutdown),
-        daemon=True,
-    )
-    t1.start()
-    t2.start()
-    return shutdown, vad
+    return {
+        "text": text,
+        "language": result["language"],
+        "backend": backend,
+        "latency_ms": result["latency_ms"],
+        "raw_text": raw_text if raw_text != text else None,
+    }

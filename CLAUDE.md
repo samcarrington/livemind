@@ -1,119 +1,158 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## What This Is
 
-Live Mind Map: a real-time meeting/conversation visualizer. Microphone audio → local STT (Kyutai/Moshi on MLX) → WebSocket → browser → Claude API → D3.js force-directed graph of concepts and relationships.
+LiveMind: a real-time conversation visualization system that captures live speech, transcribes it, and builds an animated knowledge graph of concepts and relationships as people talk.
+
+Runs locally with all inference on-host (cloud LLMs available as fallback). No external API calls required for core operation.
+
+## Architecture Overview
+
+```
+Browser (Monitor View)              DGX Spark (hugin.local)
+────────────────────                ────────────────────────
+getUserMedia → Web Audio API
+  → VAD (energy threshold)
+  → PCM chunks via WebSocket ──→  app.py (FastAPI)
+                                    → POST to localhost STT service
+                                      (faster-whisper :8766 | parakeet :8010 | canary :8011)
+                                    → transcript to LLM proxy
+                                      (Ollama localhost:11434 | Gemini API | Claude API)
+                                    → reconciler (scoring, decay, budget)
+                                    → graph update via WebSocket ──→  Browser (Main View)
+                                    → SQLite persistence
+```
+
+Audio capture happens in the browser (monitor view), NOT on the server. The server never touches a microphone. This is the key architectural difference from the original LiveMind.
+
+## Three Views
+
+| URL | Purpose | Audience |
+|-----|---------|----------|
+| `/` | Clean visualization: D3.js force graph + transcript sidebar. No controls, no chrome. | Projected on screen for audience |
+| `/monitor` | Full control surface: audio device picker, gain meter, VAD indicator, status panel (STT/LLM/WS health), session controls, model switching, live metrics, small graph mirror | Technician's laptop |
+| `/admin/sessions` | Post-session: browse past sessions, replay, generate AI recaps, export | After the event |
 
 ## Running the Project
 
 ```bash
+# Activate virtual environment
 source .venv/bin/activate
-python app.py -d <device_index>
 
-# Or interactive device picker:
-python app.py
+# Start the server (no device picker needed, audio comes from browser)
+python app.py --host 0.0.0.0 --port 8765
+
+# Or with specific port
+python app.py --host 0.0.0.0 --port 8080
 ```
 
-Server starts at `http://localhost:8765`. Open `/` for the main UI, `/admin` for the monitoring dashboard. No build step needed — the frontend is served by FastAPI.
+Server starts and is accessible via Cloudflare tunnel at `livemind.btrbot.com`.
+Open `/monitor` on the technician's device, `/` on the audience-facing screen.
 
-## Architecture
+## File Structure
 
 ```
-app.py              — FastAPI server: WS + REST routes, Claude proxy, broadcast/snapshot loops
-stt_worker.py       — Audio capture + VAD + Kyutai STT inference (background threads)
-db.py               — SQLite persistence (sessions, segments, snapshots, actions)
+app.py              — Entry point: lifespan, router registration, CLI; re-exports LLM helpers for replay.py
+settings.py         — .env loading + environment-derived config constants
+routes/             — HTTP/WS surface (APIRouters; registered in app.py, order matters)
+  pages.py          — Static HTML/SVG pages
+  sessions.py       — Session lifecycle, restore/playback, graph actions, export
+  post_session.py   — Recap, cross-session synthesis, transcript cleaning endpoints
+  providers.py      — LLM/STT provider switching, /v1/metrics
+  live.py           — /ws WebSocket endpoint
+services/           — Runtime state and behaviour (never import from app.py)
+  runtime.py        — Shared state: transcript queue, clients, metrics, activity log, reconciler
+  session_runtime.py — Current session, seq/generation counters, reset helpers (`live_session`)
+  llm.py            — Provider adapters, fallback chain, circuit breakers, pricing, JSON extraction
+  live_pipeline.py  — Audio → STT, LLM graph ingestion, broadcast/snapshot loops
+  post_session.py   — Background transcript-cleaning jobs
+stt_worker.py       — WebSocket audio receiver + STT dispatch (faster-whisper, Parakeet, Canary)
+db.py               — SQLite persistence (sessions, segments, snapshots, actions, recaps)
 reconciler.py       — Deterministic graph reconciler (scoring, decay, budget enforcement)
-live-mindmap.html   — Frontend: D3.js mind map + transcript sidebar + context menu
-admin.html          — Monitoring dashboard: STT, Claude, graph churn metrics
-requirements.txt    — Python dependencies
+static/             — All HTML/SVG files served by FastAPI
+  live-mindmap.html — Audience view: D3.js force graph + transcript sidebar (NO controls)
+  monitor.html      — Technician view: audio capture, device picker, status panel, session/model controls
+  sessions.html     — Session browser: list, detail, recap generation, export
+  admin.html        — Legacy admin dashboard
+  doc.html          — User documentation
+  doc-admin.html    — Admin documentation
+  export-graph.html — Export helper page
 ```
 
-**`app.py`** — FastAPI server (`http://localhost:8765`)
-- Lifespan: initializes DB, starts STT pipeline, spawns broadcast + snapshot loops
-- `GET /` serves `live-mindmap.html`, `GET /admin` serves `admin.html`
-- `WS /ws`: transcript streaming, Claude proxy, session reconnect, metrics
-- `POST /v1/sessions`: create session in SQLite
-- `GET /v1/sessions/{id}/restore?from_seq=N`: snapshot + segments since N
-- `POST /v1/sessions/{id}/actions`: pin/hide/rename/merge/promote → reconciler
-- `GET /v1/metrics`: REST polling for admin metrics
-- Claude proxy runs reconciler on responses; stores snapshots in DB
+## Infrastructure (DGX Spark)
 
-**`stt_worker.py`** — Audio capture + STT
-- `VAD` class: energy-based voice activity detection with hysteresis
-- `select_input_device()`: interactive mic picker
-- `start_stt_pipeline()`: spawns capture + STT threads, returns shutdown event
-- Captures at native rate, resamples to 24kHz, emits partials every ~320ms
+### STT Services (choose via admin/monitor panel)
+- **faster-whisper** at `localhost:8766` (also via `stt.btrbot.com`): 99 languages, proven, hallucination filtering in place
+- **Parakeet TDT 0.6b v3** at `localhost:8010`: 25 European languages, extreme throughput (3300x RTFx), NeMo-based
+- **Canary 1b v2** at `localhost:8011`: 25 European languages, best accuracy (8.1% avg WER), NeMo-based
 
-**`db.py`** — SQLite with WAL mode
-- Tables: `sessions`, `segments`, `snapshots`, `actions`
-- All async via `aiosqlite`
-- DB file: `livemind.db` (auto-created on first run)
+### LLM Services (choose via admin/monitor panel)
+- **Ollama** at `localhost:11434`: gemma4:26b (primary, fast MoE), gemma4:31b (quality fallback)
+- **Gemini** via API: gemini-2.5-flash (current default, will migrate to local)
+- **Claude** via API: claude-sonnet-4 (recap generation, fallback)
 
-**`reconciler.py`** — Graph lifecycle management
-- Node states: active → parked (12min decay) → archived/hidden
-- Scoring: `0.45*recency + 0.35*frequency + 0.20*centrality + pin_bonus`
-- Budget: max 24 active nodes, parks lowest-scoring non-pinned
-- User actions: pin, hide, rename, merge, promote
+### Networking
+- Cloudflare Tunnel: `livemind.btrbot.com` → localhost:8765
+- Cloudflare Access: service token auth (same credentials as munin/stt)
+- Related services: `munin.btrbot.com` (Ollama API), `stt.btrbot.com` (faster-whisper)
 
-## Key Configuration (in `live-mindmap.html`)
+## Key Configuration
 
-Located in the `C` object at the top of the `<script>` block:
-- `C.interval`: how often Claude is called in ms (default 20000)
+### Frontend (`live-mindmap.html`)
+Located in the `C` object:
+- `C.interval`: Claude/LLM analysis interval in ms (default 20000)
 - `C.minLen`: minimum new chars before triggering analysis (default 50)
-- `C.maxN`: max node cap enforced in Claude prompt (default 30)
-- `C.model`: Claude model string
-- `C.colors`: 10-element palette array; index maps to `G.cmap` by group name
+- `C.maxN`: max nodes in LLM prompt (default 30)
 
-## Frontend Internals
+### Reconciler (`reconciler.py`)
+- `MAX_ACTIVE`: 24 nodes max
+- `DECAY_SECONDS`: 720 (12 min to parked)
+- Scoring: `0.45*recency + 0.35*frequency + 0.20*centrality + pin_bonus`
 
-The global `G` object holds all mutable state. Key fields:
-- `G.txt`: full accumulated transcript string
-- `G.sent`: character offset — only `G.txt.slice(G.sent)` is sent as "new segment" each Claude call
-- `G.nodes` / `G.edges`: current graph state fed into D3 simulation
-- `G.cmap` / `G.ci`: group→color assignment, persists across graph updates
-- `G.sessionId` / `G.lastSeq`: server session tracking for reconnect
-- `G.mergeSource`: merge mode state for node merging
-- `G._ctxNode`: context menu target node
+### LLM Proxy (`services/llm.py`)
+- Provider switching: anthropic / hugin (Ollama) / gemini
+- Circuit breaker: 3 failures → open, exponential backoff to 60s max
+- Server-side only: no API keys in browser
 
-Context menu: right-click a node for Pin/Unpin, Promote, Rename, Merge, Hide.
+## WebSocket Protocol
 
-STT fallback: if the STT server URL is left blank (or the WebSocket fails), `fallbackMic()` activates the browser's Web Speech API.
-
-FPS tracking: reports `frontend_metrics` over WS every 5s.
-
-## WebSocket Message Protocol
-
-Server → browser:
+Server → Browser:
 - `{"type":"transcript","text":"...","seq":N,"timestamp":T}` — final transcript
 - `{"type":"partial_transcript","text":"...","seq":N,"timestamp":T}` — partial
-- `{"type":"claude_response","status":200,"data":{...},"req_id":"..."}` — Claude result (reconciled)
+- `{"type":"claude_response","status":200,"data":{...},"req_id":"..."}` — LLM result (reconciled)
 - `{"type":"graph_update","graph":{...}}` — graph update from user action
 - `{"type":"restore","snapshot":{...},"segments":[...],"restore_ms":N}` — session restore
+- `{"type":"session_reset","session_id":"..."}` — new session started
 - `{"type":"status","status":"connected","message":"..."}` — connection status
 - `{"type":"metrics",...}` — metrics response
-- `{"type":"pong"}` — keepalive
 
-Browser → server:
+Browser → Server:
 - `{"type":"ping"}` — keepalive
 - `{"type":"get_metrics"}` — request metrics
-- `{"type":"claude_request","req_id":"...","body":{...}}` — Claude API proxy
-- `{"type":"connect_session","session_id":"...","last_seq":N}` — reconnect with cursor
+- `{"type":"claude_request","req_id":"...","body":{...}}` — LLM proxy request
+- `{"type":"connect_session","session_id":"...","last_seq":N}` — reconnect
 - `{"type":"frontend_metrics","fps":N}` — FPS report
+- `{"type":"audio_chunk","data":"<base64 PCM>","sample_rate":48000}` — audio from monitor (NEW)
 
-## Troubleshooting Audio
+## Dependencies
 
-- **macOS mic permission**: System Settings > Privacy & Security > Microphone > enable for Terminal
-- **Mic input level**: System Settings > Sound > Input — turn up input volume if RMS stays below 0.01 when speaking
-- The server prints RMS every 5s; speech should read ~0.05–0.2.
-- Audio is captured at the device's native sample rate and resampled to 24kHz internally.
+Python (server):
+- fastapi, uvicorn, aiosqlite, aiohttp, numpy
+- NO sounddevice, NO moshi_mlx, NO sentencepiece (removed: Mac-only)
 
-## Python Dependencies
+Browser (no build step):
+- D3.js (force graph)
+- Web Audio API (mic capture, VAD)
+- Vanilla HTML/CSS/JS
 
-Defined in `requirements.txt`. Install with:
-```bash
-pip install -r requirements.txt
-```
+## Design Principles
 
-Key packages: `fastapi`, `uvicorn`, `aiosqlite`, `aiohttp`, `moshi_mlx`, `sounddevice`, `numpy`, `huggingface-hub`, `sentencepiece`
+- No frameworks beyond FastAPI. Vanilla frontend.
+- No build step. HTML files served directly.
+- Single SQLite database. No external DB servers.
+- All LLM keys server-side only. Browser gets session tokens.
+- Audience view is distraction-free. All controls live in monitor view.
+- Circuit breaker on all external calls. Graceful degradation (transcript keeps flowing).
+- The graph must stay readable: max 24 active nodes, automatic decay, importance scoring.
